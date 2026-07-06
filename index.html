@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>המחברת</title>
+<title>Wealthy</title>
 <meta name="theme-color" content="#132A23" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="המחברת" />
+<meta name="apple-mobile-web-app-title" content="Wealthy" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -313,7 +313,7 @@ function App() {
     <div dir="rtl" style={S.app}>
       <header style={S.header}>
         <div style={S.headerRow}>
-          <div style={S.appTitle}>המחברת</div>
+          <div style={S.appTitle}>Wealthy</div>
           <button className="smsBtn" onClick={() => setSmsOpen(true)}>📩 הדבקת הודעות</button>
         </div>
         <div style={S.monthNav}>
@@ -387,7 +387,7 @@ function LoginScreen({ S, onLocalOnly }) {
     <div dir="rtl" style={{ ...S.app, justifyContent: "center", padding: "0 24px" }}>
       <div style={{ textAlign: "center", marginBottom: 36 }}>
         <div style={{ fontSize: 48 }}>📗</div>
-        <div style={{ fontSize: 28, fontWeight: 900, marginTop: 8 }}>המחברת</div>
+        <div style={{ fontSize: 28, fontWeight: 900, marginTop: 8 }}>Wealthy</div>
         <div style={{ ...S.hint, marginTop: 8, fontSize: 14 }}>מעקב הוצאות, תקציב, וסנכרון ענן.</div>
       </div>
 
@@ -554,7 +554,7 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mahberet-backup-${todayStr()}.json`;
+    a.download = `wealthy-backup-${todayStr()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -568,7 +568,7 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
         persist({ ...EMPTY_DATA, ...parsed });
         setImportErr("");
       } catch (e) {
-        setImportErr("הקובץ לא זוהה כגיבוי תקין של המחברת.");
+        setImportErr("הקובץ לא זוהה כגיבוי תקין של Wealthy.");
       }
     };
     reader.readAsText(file);
