@@ -250,6 +250,7 @@ function App() {
   const [smsOpen, setSmsOpen] = useState(false);
   const [txFilterAcc, setTxFilterAcc] = useState("all");
   const [selectedTx, setSelectedTx] = useState(null);
+  const [detailEdit, setDetailEdit] = useState(false);
 
   const dataRef = React.useRef(data);
   dataRef.current = data;
@@ -450,7 +451,8 @@ function App() {
         )}
         {tab === "tx" && (
           <TxTab S={S} monthTx={monthTx} accounts={data.accounts} accById={accById} merchById={merchById}
-            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} onOpen={setSelectedTx}
+            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx}
+            onOpen={(t) => { setDetailEdit(false); setSelectedTx(t); }} onEdit={(t) => { setDetailEdit(true); setSelectedTx(t); }}
             viewYM={viewYM} setViewYM={setViewYM} />
         )}
         {tab === "budgets" && <BudgetsTab S={S} />}
@@ -484,7 +486,7 @@ function App() {
           onConfirm={(items) => { addTransactions(items); setSmsOpen(false); setTab("tx"); }} />
       )}
       {selectedTx && (
-        <TxDetailSheet key={selectedTx.id} S={S} tx={selectedTx} accounts={data.accounts} merchants={data.merchants}
+        <TxDetailSheet key={`${selectedTx.id}-${detailEdit}`} initialEdit={detailEdit} S={S} tx={selectedTx} accounts={data.accounts} merchants={data.merchants}
           accById={accById} merchById={merchById}
           onClose={() => setSelectedTx(null)}
           onSave={(patch) => { editTransaction(selectedTx.id, patch); setSelectedTx(null); }}
@@ -578,7 +580,57 @@ function BudgetsTab({ S }) {
 }
 
 // ================= תנועות =================
-function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete, onOpen, viewYM, setViewYM }) {
+// ================= שורת תנועה עם החלקה לחשיפת פעולות =================
+function SwipeRow({ id, openId, setOpenId, onEdit, onDelete, onOpen, children }) {
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dxRef = React.useRef(0);
+  const st = React.useRef(null);
+  const REVEAL = 84, THRESH = 42;
+  const set = (v) => { dxRef.current = v; setDx(v); };
+
+  // רשומה נסגרת אוטומטית כשרשומה אחרת נפתחת
+  useEffect(() => { if (openId !== id && dxRef.current !== 0) set(0); }, [openId, id]);
+
+  const down = (e) => {
+    st.current = { x: e.clientX, base: dxRef.current, moved: false };
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  };
+  const move = (e) => {
+    if (!st.current) return;
+    const delta = e.clientX - st.current.x;
+    if (Math.abs(delta) > 6) st.current.moved = true;
+    set(Math.max(-REVEAL, Math.min(REVEAL, st.current.base + delta)));
+  };
+  const up = () => {
+    if (!st.current) return;
+    const moved = st.current.moved;
+    st.current = null;
+    setDragging(false);
+    if (!moved) { if (dxRef.current !== 0) { set(0); setOpenId(null); } else onOpen(); return; }
+    if (dxRef.current > THRESH) { set(REVEAL); setOpenId(id); }        // החלקה ימינה => עריכה
+    else if (dxRef.current < -THRESH) { set(-REVEAL); setOpenId(id); } // החלקה שמאלה => מחיקה
+    else set(0);
+  };
+  const act = (fn) => { set(0); setOpenId(null); fn(); };
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 8 }}>
+      <button aria-label="עריכה" onClick={() => act(onEdit)}
+        style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 84, border: "none", background: "#1E7A5A", color: "#EDF5EF", fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, cursor: "pointer" }}>✏️<br />עריכה</button>
+      <button aria-label="מחיקה" onClick={() => act(onDelete)}
+        style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 84, border: "none", background: "#C93B3B", color: "#fff", fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, cursor: "pointer" }}>🗑<br />מחיקה</button>
+      <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        style={{ position: "relative", zIndex: 1, transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform .22s ease", touchAction: "pan-y" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete, onEdit, onOpen, viewYM, setViewYM }) {
+  const [openId, setOpenId] = useState(null);
   const list = monthTx.filter((t) => filterAcc === "all" || t.accountId === filterAcc || t.toAccountId === filterAcc);
 
   // הווידג'טים מחושבים על הרשימה המסוננת בלבד - מה שרואים זה מה שנספר.
@@ -661,25 +713,30 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
         const m = t.merchantId ? merchById(t.merchantId) : null;
         const isTransfer = t.type === "transfer";
         const isIncome = t.type === "income";
-        const title = (m && m.name) || t.note || (isTransfer ? "העברה" : c.name);
+        const merchantName = m && m.name;
+        const note = t.note && t.note.trim();
+        const title = note || merchantName || (isTransfer ? "העברה" : c.name);
         const meta = [
+          merchantName && title !== merchantName ? merchantName : null,
           isTransfer ? `${(accById(t.accountId) || {}).name} ← ${(accById(t.toAccountId) || {}).name}` : (accById(t.accountId) || {}).name,
           heDate(t.date),
           t.instTotal ? `תשלום ${t.instIdx}/${t.instTotal}` : null,
           t.fixedId ? "קבועה" : null,
         ].filter(Boolean).join(" · ");
         return (
-          <div key={t.id} style={{ ...S.txRow, cursor: "pointer" }} onClick={() => onOpen(t)}>
-            <div style={S.txEmoji}>{isTransfer ? "⇄" : isIncome ? "💰" : c.emoji}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={S.txTitle}>{title}</div>
-              <div style={S.txMeta}>{meta}</div>
+          <SwipeRow key={t.id} id={t.id} openId={openId} setOpenId={setOpenId}
+            onEdit={() => onEdit(t)} onDelete={() => onDelete(t)} onOpen={() => onOpen(t)}>
+            <div style={{ ...S.txRow, marginBottom: 0 }}>
+              <div style={S.txEmoji}>{isTransfer ? "⇄" : isIncome ? "💰" : c.emoji}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={S.txTitle}>{title}</div>
+                <div style={S.txMeta}>{meta}</div>
+              </div>
+              <div style={{ ...S.txAmount, color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
+                {isIncome ? "+" : ""}{fmt(t.amount)}
+              </div>
             </div>
-            <div style={{ ...S.txAmount, color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
-              {isIncome ? "+" : ""}{fmt(t.amount)}
-            </div>
-            <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 15 }} onClick={(e) => { e.stopPropagation(); onDelete(t); }} aria-label="מחיקה">✕</button>
-          </div>
+          </SwipeRow>
         );
       })}
     </div>
@@ -687,14 +744,14 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
 }
 
 // ================= גיליון פרטי תנועה =================
-function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose, onSave, onDelete }) {
+function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose, onSave, onDelete, initialEdit }) {
   const merchant = tx.merchantId ? merchById(tx.merchantId) : null;
   const isTransfer = tx.type === "transfer";
   const isIncome = tx.type === "income";
   const c = catById(tx.categoryId);
-  const title = (merchant && merchant.name) || tx.note || (isTransfer ? "העברה" : c.name);
+  const title = (tx.note && tx.note.trim()) || (merchant && merchant.name) || (isTransfer ? "העברה" : c.name);
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(!!initialEdit);
   const [amount, setAmount] = useState(String(tx.amount));
   const [accountId, setAccountId] = useState(tx.accountId);
   const [categoryId, setCategoryId] = useState(tx.categoryId);
@@ -728,6 +785,9 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
             <div style={S.detailRow}><span style={S.detailKey}>סוג</span><span>{isTransfer ? "העברה" : isIncome ? "הכנסה" : "הוצאה"}</span></div>
             {!isTransfer && !isIncome && (
               <div style={S.detailRow}><span style={S.detailKey}>קטגוריה</span><span>{c.emoji} {c.name}</span></div>
+            )}
+            {merchant && merchant.name && title !== merchant.name && (
+              <div style={S.detailRow}><span style={S.detailKey}>בית עסק</span><span>{merchant.name}</span></div>
             )}
             <div style={S.detailRow}>
               <span style={S.detailKey}>{isTransfer ? "מ / אל" : "חשבון"}</span>
