@@ -69,7 +69,11 @@ const DEFAULT_ACCOUNTS = [
 const MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
 // ================= עזרים =================
-const fmt = (n) => "₪" + Number(n || 0).toLocaleString("he-IL", { maximumFractionDigits: 0 });
+const fmt = (n) => {
+  const v = Number(n || 0);
+  const hasAgorot = Math.round(v * 100) % 100 !== 0; // הצג אגורות רק כשיש; מספר עגול נשאר נקי
+  return "₪" + v.toLocaleString("he-IL", { minimumFractionDigits: hasAgorot ? 2 : 0, maximumFractionDigits: 2 });
+};
 const fmtSigned = (n) => (n < 0 ? "־" : "") + fmt(Math.abs(n));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -248,7 +252,9 @@ function App() {
   const fixedSpent = monthTx.filter((t) => t.type === "expense" && t.fixedId).reduce((s, t) => s + t.amount, 0);
   const variableSpent = monthTx.filter((t) => t.type === "expense" && !t.fixedId).reduce((s, t) => s + t.amount, 0);
   const monthIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const plannedFixed = data.fixed.filter((f) => !f.startYM || f.startYM <= viewYM).reduce((s, f) => s + f.amount, 0);
+  const plannedFixed = data.fixed
+    .filter((f) => (!f.startYM || f.startYM <= viewYM) && !data.fixedSkips.includes(`${f.id}|${viewYM}`))
+    .reduce((s, f) => s + f.amount, 0);
   const fixedForBudget = Math.max(plannedFixed, fixedSpent);
   const flexBudget = Math.max(0, data.budget - fixedForBudget);
   const flexRemaining = flexBudget - variableSpent;
@@ -305,7 +311,10 @@ function App() {
         const groupId = uid();
         for (let i = 0; i < N; i++) {
           const amt = i === N - 1 ? Math.round((it.amount - per * (N - 1)) * 100) / 100 : per;
-          const dt = addMonthsYM(ymOf(it.date), i) + "-" + it.date.slice(8);
+          const shiftedYM = addMonthsYM(ymOf(it.date), i);
+          const [sy, sm] = shiftedYM.split("-").map(Number);
+          const lastDay = new Date(sy, sm, 0).getDate(); // היום האחרון של חודש היעד
+          const dt = `${shiftedYM}-${pad2(Math.min(parseInt(it.date.slice(8), 10) || 1, lastDay))}`;
           newTx.push({ id: uid(), type: "expense", amount: amt, accountId: it.accountId, merchantId, categoryId: it.categoryId, date: dt, note: it.note, groupId, instIdx: i + 1, instTotal: N });
         }
       } else {
@@ -518,7 +527,7 @@ function HomeTab({ S, budget, flexBudget, flexRemaining, fixedForBudget, variabl
                 <div style={S.catName}><span style={{ marginLeft: 6 }}>{c.emoji}</span>{c.name}</div>
                 <b>{fmt(amt)}</b>
               </div>
-              <div style={S.barTrack}><div style={{ ...S.barFill, width: `${(amt / max) * 100}%`, background: "#1E7A5A" }} /></div>
+              <div style={S.barTrack}><div style={{ ...S.barFill, width: `${max > 0 ? (amt / max) * 100 : 0}%`, background: "#1E7A5A" }} /></div>
             </div>
           );
         })}
@@ -594,8 +603,10 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
   const [date, setDate] = useState(tx.date);
   const [note, setNote] = useState(tx.note || "");
 
+  const valid = parseFloat(amount) > 0;
   const save = () => {
-    const patch = { amount: parseFloat(amount) || 0, accountId, date, note: note.trim() };
+    if (!valid) return;
+    const patch = { amount: parseFloat(amount), accountId, date, note: note.trim() };
     if (!isTransfer) {
       patch.categoryId = isIncome ? "other" : categoryId;
       patch.merchantName = merchantName;
@@ -671,7 +682,7 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
             <label style={S.fieldLabel}>הערה</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} style={{ ...S.textarea, marginTop: 0 }} rows={3} />
             <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-              <button className="primaryBtn" style={{ ...S.primaryBtn, marginTop: 0, flex: 1 }} onClick={save}>שמירה</button>
+              <button className="primaryBtn" disabled={!valid} style={{ ...S.primaryBtn, marginTop: 0, flex: 1, opacity: valid ? 1 : 0.4 }} onClick={save}>שמירה</button>
               <button className="miniBtn" style={{ padding: "12px 18px" }} onClick={() => setEditing(false)}>ביטול</button>
             </div>
           </React.Fragment>
@@ -716,6 +727,8 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
       try {
         const parsed = JSON.parse(reader.result);
         if (!parsed.transactions || !parsed.accounts) throw new Error("bad");
+        const ok = window.confirm(`שחזור מגיבוי יחליף את כל הנתונים הנוכחיים (${data.transactions.length} תנועות) ב-${parsed.transactions.length} תנועות מהקובץ. הפעולה אינה הפיכה. להמשיך?`);
+        if (!ok) return;
         persist(migrate({ ...EMPTY_DATA, ...parsed }));
         setImportErr("");
       } catch (e) {
@@ -931,7 +944,7 @@ function SmsSheet({ S, accounts, merchants, onClose, onConfirm }) {
 
   const matchAccount = (cardHint) => {
     if (cardHint) {
-      const hit = accounts.find((a) => a.hint && (String(cardHint).includes(a.hint) || a.hint.includes(String(cardHint))));
+      const hit = accounts.find((a) => a.hint && a.hint.slice(-4) === String(cardHint).slice(-4));
       if (hit) return hit.id;
     }
     const cc = accounts.find((a) => a.name.includes("אשראי"));
