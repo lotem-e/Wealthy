@@ -107,20 +107,21 @@ const ymLabel = (ym) => { const [y, m] = ym.split("-").map(Number); return `${MO
 const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 const heDate = (d) => d.split("-").reverse().join(".");
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const EMPTY_DATA = {
   schemaVersion: SCHEMA_VERSION,
   accounts: DEFAULT_ACCOUNTS, merchants: [], transactions: [],
-  fixed: [], fixedSkips: [], budget: 0,
+  fixed: [], fixedSkips: [], deleted: [], budget: 0,
 };
 
-// שדרוג מבנה נתונים: נקודת עגינה שתאפשר לשנות מבנה נתונים ישן בבטחה בעתיד.
-// כרגע אין שינויי מבנה, אז זו פעולה ריקה שרק מסמנת את הגרסה הנוכחית.
+// שדרוג מבנה נתונים: נקודת עגינה שמאפשרת לשנות מבנה נתונים ישן בבטחה.
 function migrate(data) {
   if (!data) return data;
   let d = data;
-  // בעתיד: if ((d.schemaVersion || 0) < 2) { d = { ...d, /* שינוי מבנה */ }; }
+  // גרסה 2: רשימת "מצבות" (tombstones) - מזהים שנמחקו בכוונה.
+  // בלעדיה, מיזוג הסנכרון לא מבדיל בין "נמחק" ל"עוד לא סונכרן" ומחזיר מחיקות לחיים.
+  if ((d.schemaVersion || 0) < 2) d = { ...d, deleted: d.deleted || [] };
   return { ...d, schemaVersion: SCHEMA_VERSION };
 }
 
@@ -133,14 +134,18 @@ function mergeById(primary, secondary) {
   return Array.from(map.values());
 }
 function mergeData(primary, secondary) {
+  // איחוד המצבות משני הצדדים: מחיקה בצד אחד היא סופית וגוברת על האיחוד לפי id
+  const deleted = new Set([...(secondary.deleted || []), ...(primary.deleted || [])]);
+  const alive = (arr) => arr.filter((x) => !deleted.has(x.id));
   return {
     ...secondary,
     ...primary,
-    transactions: mergeById(primary.transactions, secondary.transactions),
+    transactions: alive(mergeById(primary.transactions, secondary.transactions)),
     merchants: mergeById(primary.merchants, secondary.merchants),
     accounts: mergeById(primary.accounts, secondary.accounts),
-    fixed: mergeById(primary.fixed, secondary.fixed),
+    fixed: alive(mergeById(primary.fixed, secondary.fixed)),
     fixedSkips: Array.from(new Set([...(secondary.fixedSkips || []), ...(primary.fixedSkips || [])])),
+    deleted: Array.from(deleted),
   };
 }
 
@@ -268,8 +273,9 @@ function App() {
           const merged = mergeData(cloudData, dataRef.current);
           setData(merged);
           store.save(merged);
-          // אם המיזוג הוסיף נתונים מקומיים שלא היו בענן, דוחפים אותם בחזרה
-          if (merged.transactions.length > cloudData.transactions.length) {
+          // אם המיזוג שינה משהו לעומת הענן - תוספות מקומיות או מחיקות (מצבות) - דוחפים בחזרה
+          if (merged.transactions.length !== cloudData.transactions.length ||
+              (merged.deleted || []).length !== (cloudData.deleted || []).length) {
             cloudSaveDebounced(session.user.id, merged, setSyncStatus);
           } else {
             setSyncStatus("synced");
@@ -388,7 +394,11 @@ function App() {
   };
 
   const deleteTx = (t) => {
-    let next = { ...data, transactions: data.transactions.filter((x) => x.id !== t.id) };
+    let next = {
+      ...data,
+      transactions: data.transactions.filter((x) => x.id !== t.id),
+      deleted: [...(data.deleted || []), t.id], // מצבה: כדי שמיזוג הסנכרון לא יחזיר את המחיקה
+    };
     if (t.fixedId) next.fixedSkips = [...data.fixedSkips, `${t.fixedId}|${ymOf(t.date)}`];
     persist(next);
   };
@@ -801,6 +811,8 @@ function SettingsTab({ S, data, persist, session, syncStatus, onLogout, onLogin 
     ...data,
     fixed: data.fixed.filter((f) => f.id !== id),
     transactions: data.transactions.filter((t) => t.fixedId !== id), // #11: מוחק גם תנועות שנוצרו מהקבועה
+    // מצבות לקבועה ולכל התנועות שנולדו ממנה, שהסנכרון לא יחזיר אף אחת מהן
+    deleted: [...(data.deleted || []), id, ...data.transactions.filter((t) => t.fixedId === id).map((t) => t.id)],
   });
   // #13: עצירת קבועה - קובע חודש סיום, מפסיק יצירה עתידית אבל שומר את ההיסטוריה
   const stopFixed = (id) => persist({ ...data, fixed: data.fixed.map((f) => (f.id === id ? { ...f, endYM: currentYM() } : f)) });
