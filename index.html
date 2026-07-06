@@ -26,18 +26,29 @@
   .ghostBtn { background: none; border: none; cursor: pointer; font-size: 22px; color: #40544D; padding: 4px 10px; border-radius: 8px; }
   .ghostBtn:active { background: #E3EAE5; }
   .todayBtn { background: #E3EAE5; border: none; border-radius: 999px; padding: 4px 12px; font-family: inherit; font-size: 13px; color: #40544D; cursor: pointer; }
-  .smsBtn { background: #132A23; color: #EDF5EF; border: none; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
-  .smsBtn:active { transform: scale(0.97); }
   .miniBtn { background: #E3EAE5; border: none; border-radius: 999px; padding: 7px 14px; font-family: inherit; font-size: 13.5px; font-weight: 500; color: #132A23; cursor: pointer; }
   .linkBtn { background: none; border: none; width: 100%; margin-top: 10px; font-family: inherit; font-size: 14px; color: #5B6B66; cursor: pointer; text-decoration: underline; }
-  .tabBtn:active, .catChip:active, .segBtn:active { transform: scale(0.97); }
-  .fab {
-    position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-    width: 60px; height: 60px; border-radius: 50%;
-    background: #132A23; color: #EDF5EF; font-size: 32px; line-height: 1;
-    border: none; cursor: pointer; box-shadow: 0 6px 18px rgba(19,42,35,0.35); z-index: 40;
+  .catChip:active, .segBtn:active { transform: scale(0.97); }
+  /* בר ניווט תחתון בסגנון "ליקוויד גלאס" - טשטוש הרקע (backdrop-filter) הוא הקירוב
+     של הווב לזכוכית של אפל: רקע שקוף למחצה + טשטוש + מסגרת בהירה דקה */
+  .glassBar {
+    background: rgba(247, 250, 247, 0.72);
+    -webkit-backdrop-filter: blur(18px) saturate(1.7);
+    backdrop-filter: blur(18px) saturate(1.7);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 10px 30px rgba(19,42,35,0.16);
   }
-  .fab:active { transform: translateX(-50%) scale(0.94); }
+  .navBtn { background: none; border: none; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; padding: 7px 10px; border-radius: 14px; }
+  .navBtn:active { transform: scale(0.94); }
+  .fabRound {
+    width: 54px; height: 54px; border-radius: 50%; flex: none;
+    background: #132A23; color: #EDF5EF; font-size: 30px; line-height: 1;
+    border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(19,42,35,0.35);
+  }
+  .fabRound:active { transform: scale(0.94); }
+  /* מסתיר את פס הגלילה בקרוסלת הווידג'טים בלי לבטל את הגלילה עצמה */
+  .noScrollbar { scrollbar-width: none; }
+  .noScrollbar::-webkit-scrollbar { display: none; }
   .primaryBtn:active { transform: scale(0.98); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -200,6 +211,28 @@ function parseSmsText(text) {
   return out;
 }
 
+// ================= ניווט תחתון =================
+const TABS = [
+  { key: "balances", label: "מאזנים" },
+  { key: "tx", label: "תנועות" },
+  { key: "budgets", label: "תקציבים" },
+  { key: "settings", label: "הגדרות" },
+];
+
+// אייקונים בקו דק בסגנון SF Symbols, מצוירים כ-SVG ידני - את הפונט של אפל
+// אסור רישיונית להטמיע בווב, אז מציירים קו דומה (קו 1.8, קצוות מעוגלים).
+function TabIcon({ name, active }) {
+  const p = { fill: "none", stroke: "currentColor", strokeWidth: active ? 2.2 : 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
+  return (
+    <svg width="23" height="23" viewBox="0 0 24 24" aria-hidden="true">
+      {name === "balances" && <g {...p}><path d="M3 9.2L12 3.8l9 5.4" /><path d="M5.2 10.5v6.5M9.4 10.5v6.5M14.6 10.5v6.5M18.8 10.5v6.5" /><path d="M3.5 20.2h17" /></g>}
+      {name === "tx" && <g {...p}><path d="M7.5 4.5v13" /><path d="M4.5 14.5l3 3 3-3" /><path d="M16.5 19.5v-13" /><path d="M13.5 9.5l3-3 3 3" /></g>}
+      {name === "budgets" && <g {...p}><path d="M21.2 15.9A10 10 0 1 1 8 2.8" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></g>}
+      {name === "settings" && <g {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></g>}
+    </svg>
+  );
+}
+
 // ================= רכיב ראשי =================
 function App() {
   const [session, setSession] = useState(undefined); // undefined=בבדיקה, null=לא מחוברת
@@ -207,7 +240,7 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | saving | synced | offline
   const [data, setData] = useState(() => store.load() || EMPTY_DATA);
   const [viewYM, setViewYM] = useState(currentYM());
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("balances");
   const [addOpen, setAddOpen] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
   const [txFilterAcc, setTxFilterAcc] = useState("all");
@@ -301,19 +334,6 @@ function App() {
     () => data.transactions.filter((t) => ymOf(t.date) === viewYM).sort((a, b) => (a.date < b.date ? 1 : -1)),
     [data.transactions, viewYM]
   );
-  const fixedSpent = monthTx.filter((t) => t.type === "expense" && t.fixedId).reduce((s, t) => s + t.amount, 0);
-  const variableSpent = monthTx.filter((t) => t.type === "expense" && !t.fixedId).reduce((s, t) => s + t.amount, 0);
-  const monthIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const plannedFixed = data.fixed
-    .filter((f) => (f.type || "expense") === "expense"
-      && (!f.startYM || f.startYM <= viewYM)
-      && (!f.endYM || viewYM <= f.endYM)
-      && !data.fixedSkips.includes(`${f.id}|${viewYM}`))
-    .reduce((s, f) => s + f.amount, 0);
-  const fixedForBudget = Math.max(plannedFixed, fixedSpent);
-  const flexBudget = Math.max(0, data.budget - fixedForBudget);
-  const flexRemaining = flexBudget - variableSpent;
-
   const balances = useMemo(() => {
     const b = {};
     for (const a of data.accounts) b[a.id] = Number(a.opening) || 0;
@@ -328,18 +348,6 @@ function App() {
     return b;
   }, [data.accounts, data.transactions]);
   const totalBalance = Object.values(balances).reduce((s, v) => s + v, 0);
-
-  const spentByCat = useMemo(() => {
-    const m = {};
-    for (const t of monthTx) if (t.type === "expense") m[t.categoryId] = (m[t.categoryId] || 0) + t.amount;
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [monthTx]);
-
-  const spentByMerchant = useMemo(() => {
-    const m = {};
-    for (const t of monthTx) { if (t.type !== "expense" || !t.merchantId) continue; m[t.merchantId] = (m[t.merchantId] || 0) + t.amount; }
-    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  }, [monthTx]);
 
   const accById = (id) => data.accounts.find((a) => a.id === id);
   const merchById = (id) => data.merchants.find((m) => m.id === id);
@@ -417,47 +425,47 @@ function App() {
   return (
     <div dir="rtl" style={S.app}>
       <header style={S.header}>
-        <div style={S.headerRow}>
-          <div style={S.appTitle}>Wealthy</div>
-          <button className="smsBtn" onClick={() => setSmsOpen(true)}>📩 הדבקת הודעות</button>
-        </div>
-        <div style={S.monthNav}>
-          <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, -1))} aria-label="חודש קודם">‹</button>
-          <div style={S.monthLabel}>{ymLabel(viewYM)}</div>
-          <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, 1))} aria-label="חודש הבא">›</button>
-          {viewYM !== currentYM() && <button className="todayBtn" onClick={() => setViewYM(currentYM())}>היום</button>}
-        </div>
+        <div style={S.appTitle}>Wealthy</div>
+        {/* כותרת גדולה מתחלפת לפי הטאב הפעיל, כמו Large Title ב-iOS */}
+        <div style={S.pageTitle}>{(TABS.find((t) => t.key === tab) || TABS[0]).label}</div>
       </header>
 
       {!store.available && (
         <div style={S.warnBanner}>שמירה מקומית לא זמינה בתצוגה הזו — הנתונים יישמרו רק כשפותחים את האפליקציה מהדפדפן בטלפון.</div>
       )}
 
-      <nav style={S.tabs}>
-        {[["home", "בית"], ["tx", "תנועות"], ["manage", "ניהול"]].map(([k, l]) => (
-          <button key={k} className="tabBtn" onClick={() => setTab(k)} style={{ ...S.tabBtn, ...(tab === k ? S.tabActive : {}) }}>{l}</button>
-        ))}
-      </nav>
-
       <main style={S.main}>
-        {tab === "home" && (
-          <HomeTab S={S} budget={data.budget} flexBudget={flexBudget} flexRemaining={flexRemaining}
-            fixedForBudget={fixedForBudget} variableSpent={variableSpent} monthIncome={monthIncome}
-            accounts={data.accounts} balances={balances} totalBalance={totalBalance}
-            spentByCat={spentByCat} spentByMerchant={spentByMerchant} merchById={merchById} />
+        {tab === "balances" && (
+          <BalancesTab S={S} accounts={data.accounts} balances={balances} totalBalance={totalBalance} />
         )}
         {tab === "tx" && (
           <TxTab S={S} monthTx={monthTx} accounts={data.accounts} accById={accById} merchById={merchById}
-            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} onOpen={setSelectedTx} />
+            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} onOpen={setSelectedTx}
+            viewYM={viewYM} setViewYM={setViewYM} />
         )}
-        {tab === "manage" && <ManageTab S={S} data={data} persist={persist} session={session} syncStatus={syncStatus} onLogout={logout} onLogin={() => setLocalOnly(false)} />}
+        {tab === "budgets" && <BudgetsTab S={S} />}
+        {tab === "settings" && <SettingsTab S={S} data={data} persist={persist} session={session} syncStatus={syncStatus} onLogout={logout} onLogin={() => setLocalOnly(false)} />}
       </main>
 
-      <button className="fab" onClick={() => setAddOpen(true)} aria-label="הוספת תנועה">+</button>
+      {/* ניווט תחתון: קפסולת זכוכית עם 4 טאבים, ולידה כפתור פלוס עגול נפרד */}
+      <div style={S.bottomWrap}>
+        <nav className="glassBar" style={S.bottomNav} aria-label="ניווט ראשי">
+          {TABS.map((t) => (
+            <button key={t.key} className="navBtn" onClick={() => setTab(t.key)}
+              style={{ color: tab === t.key ? "#132A23" : "#7A8A82", fontWeight: tab === t.key ? 700 : 500 }}
+              aria-current={tab === t.key ? "page" : undefined}>
+              <TabIcon name={t.key} active={tab === t.key} />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <button className="fabRound" onClick={() => setAddOpen(true)} aria-label="הוספת תנועה">+</button>
+      </div>
 
       {addOpen && (
         <AddSheet S={S} accounts={data.accounts} merchants={data.merchants}
           onClose={() => setAddOpen(false)}
+          onPaste={() => { setAddOpen(false); setSmsOpen(true); }}
           onSave={(item) => { addTransactions([item]); setAddOpen(false); setViewYM(ymOf(item.date)); }} />
       )}
       {smsOpen && (
@@ -531,86 +539,112 @@ function LoginScreen({ S, onLocalOnly }) {
   );
 }
 
-// ================= מסך הבית =================
-function HomeTab({ S, budget, flexBudget, flexRemaining, fixedForBudget, variableSpent, monthIncome, accounts, balances, totalBalance, spentByCat, spentByMerchant, merchById }) {
-  const pct = flexBudget > 0 ? Math.min(100, (variableSpent / flexBudget) * 100) : 0;
-  const over = flexRemaining < 0;
+// ================= מאזנים =================
+function BalancesTab({ S, accounts, balances, totalBalance }) {
   return (
-    <div>
-      <section style={S.card}>
-        <div style={S.cardTitle}>תקציב גמיש החודש</div>
-        {budget > 0 ? (
-          <React.Fragment>
-            <div style={{ ...S.bigNumber, color: over ? "#C93B3B" : "#132A23" }}>
-              {fmtSigned(flexRemaining)}<span style={S.bigSub}> {over ? "חריגה" : "נשאר"}</span>
-            </div>
-            <div style={S.totalBarTrack}>
-              <div style={{ ...S.totalBarFill, width: `${pct}%`, background: over ? "#C93B3B" : pct > 85 ? "#D99A26" : "#1E7A5A" }} />
-            </div>
-            <div style={S.flexBreakdown}>
-              תקציב {fmt(budget)} − קבועות {fmt(fixedForBudget)} = גמיש {fmt(flexBudget)} · יצא {fmt(variableSpent)}
-              {monthIncome > 0 && <React.Fragment> · נכנס {fmt(monthIncome)}</React.Fragment>}
-            </div>
-          </React.Fragment>
-        ) : (
-          <div style={S.hint}>מגדירים תקציב חודשי בלשונית ״ניהול״ ומכאן הכל מחושב לבד.</div>
-        )}
-      </section>
-
-      <section style={S.card}>
-        <div style={S.cardTitleRow}>
-          <div style={S.cardTitle}>מאזן כולל</div>
-          <div style={{ fontWeight: 900, fontSize: 18, color: totalBalance < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(totalBalance)}</div>
+    <section style={S.card}>
+      <div style={S.cardTitleRow}>
+        <div style={S.cardTitle}>מאזן כולל</div>
+        <div style={{ fontWeight: 900, fontSize: 18, color: totalBalance < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(totalBalance)}</div>
+      </div>
+      {accounts.map((a) => (
+        <div key={a.id} style={S.accRow}>
+          <span>{a.name}</span>
+          <b style={{ color: (balances[a.id] || 0) < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(balances[a.id] || 0)}</b>
         </div>
-        {accounts.map((a) => (
-          <div key={a.id} style={S.accRow}>
-            <span>{a.name}</span>
-            <b style={{ color: (balances[a.id] || 0) < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(balances[a.id] || 0)}</b>
-          </div>
-        ))}
-      </section>
+      ))}
+    </section>
+  );
+}
 
-      <section style={S.card}>
-        <div style={S.cardTitle}>פילוח הוצאות החודש</div>
-        {spentByCat.length === 0 && <div style={S.hint}>אין עדיין הוצאות החודש.</div>}
-        {spentByCat.map(([catId, amt]) => {
-          const c = catById(catId);
-          const max = spentByCat[0][1];
-          return (
-            <div key={catId} style={{ marginBottom: 10 }}>
-              <div style={S.catTop}>
-                <div style={S.catName}><span style={{ marginLeft: 6 }}>{c.emoji}</span>{c.name}</div>
-                <b>{fmt(amt)}</b>
-              </div>
-              <div style={S.barTrack}><div style={{ ...S.barFill, width: `${max > 0 ? (amt / max) * 100 : 0}%`, background: "#1E7A5A" }} /></div>
-            </div>
-          );
-        })}
-        {spentByMerchant.length > 0 && (
-          <React.Fragment>
-            <div style={{ ...S.cardTitle, marginTop: 14 }}>בתי עסק מובילים</div>
-            {spentByMerchant.map(([mid, amt]) => (
-              <div key={mid} style={S.accRow}>
-                <span>{(merchById(mid) || {}).name || "—"}</span>
-                <b>{fmt(amt)}</b>
-              </div>
-            ))}
-          </React.Fragment>
-        )}
-      </section>
+// ================= תקציבים (בבנייה) =================
+function BudgetsTab({ S }) {
+  return (
+    <div style={S.empty}>
+      <div style={{ fontSize: 36, marginBottom: 8 }}>🎯</div>
+      כאן ייבנו התקציבים - בקרוב.
     </div>
   );
 }
 
 // ================= תנועות =================
-function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete, onOpen }) {
+function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete, onOpen, viewYM, setViewYM }) {
   const list = monthTx.filter((t) => filterAcc === "all" || t.accountId === filterAcc || t.toAccountId === filterAcc);
+
+  // הווידג'טים מחושבים על הרשימה המסוננת בלבד - מה שרואים זה מה שנספר.
+  // העברות לא נכללות: הן לא הכנסה ולא הוצאה, רק הזזת כסף בין חשבונות.
+  const expenseSum = list.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const incomeSum = list.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const net = incomeSum - expenseSum;
+
+  const byCat = (() => {
+    const m = {};
+    for (const t of list) if (t.type === "expense") m[t.categoryId] = (m[t.categoryId] || 0) + t.amount;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  })();
+
+  const byMerchant = (() => {
+    const m = {};
+    for (const t of list) { if (t.type !== "expense" || !t.merchantId) continue; m[t.merchantId] = (m[t.merchantId] || 0) + t.amount; }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  })();
+
   return (
     <div>
+      <div style={{ ...S.monthNav, marginTop: 0, marginBottom: 10 }}>
+        <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, -1))} aria-label="חודש קודם">‹</button>
+        <div style={S.monthLabel}>{ymLabel(viewYM)}</div>
+        <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, 1))} aria-label="חודש הבא">›</button>
+        {viewYM !== currentYM() && <button className="todayBtn" onClick={() => setViewYM(currentYM())}>היום</button>}
+      </div>
+
       <select value={filterAcc} onChange={(e) => setFilterAcc(e.target.value)} style={S.select}>
         <option value="all">כל החשבונות</option>
         {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
       </select>
+
+      {list.length > 0 && (
+        <div className="noScrollbar" style={S.txWidgets}>
+          <section style={S.txWidget}>
+            <div style={S.cardTitle}>סה״כ בתצוגה · {list.length} תנועות</div>
+            <div style={{ fontSize: 27, fontWeight: 900, color: net >= 0 ? "#1E7A5A" : "#132A23" }}>
+              {net > 0 ? "+" : ""}{fmtSigned(net)}
+            </div>
+            <div style={S.flexBreakdown}>נכנס {fmt(incomeSum)} · יצא {fmt(expenseSum)}</div>
+          </section>
+
+          <section style={S.txWidget}>
+            <div style={S.cardTitle}>פילוח לפי קטגוריות</div>
+            {byCat.length === 0 && <div style={S.hint}>אין הוצאות בתצוגה הזו.</div>}
+            {byCat.slice(0, 4).map(([catId, amt]) => {
+              const c = catById(catId);
+              const max = byCat[0][1];
+              return (
+                <div key={catId} style={{ marginBottom: 8 }}>
+                  <div style={S.catTop}>
+                    <div style={S.catName}><span style={{ marginLeft: 6 }}>{c.emoji}</span>{c.name}</div>
+                    <b>{fmt(amt)}</b>
+                  </div>
+                  <div style={S.barTrack}><div style={{ ...S.barFill, width: `${max > 0 ? (amt / max) * 100 : 0}%`, background: "#1E7A5A" }} /></div>
+                </div>
+              );
+            })}
+            {byCat.length > 4 && <div style={S.hint}>ועוד {byCat.length - 4} קטגוריות</div>}
+          </section>
+
+          <section style={S.txWidget}>
+            <div style={S.cardTitle}>פילוח לפי בתי עסק</div>
+            {byMerchant.length === 0 && <div style={S.hint}>אין הוצאות משויכות לבתי עסק.</div>}
+            {byMerchant.map(([mid, amt]) => (
+              <div key={mid} style={S.accRow}>
+                <span>{(merchById(mid) || {}).name || "—"}</span>
+                <b>{fmt(amt)}</b>
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
+
       {list.length === 0 && <div style={S.empty}>אין תנועות בחודש הזה.</div>}
       {list.map((t) => {
         const c = catById(t.categoryId);
@@ -747,8 +781,8 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
   );
 }
 
-// ================= ניהול =================
-function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin }) {
+// ================= הגדרות (לשעבר ניהול) =================
+function SettingsTab({ S, data, persist, session, syncStatus, onLogout, onLogin }) {
   const [newFixed, setNewFixed] = useState({ name: "", amount: "", type: "expense", categoryId: "bills", accountId: (data.accounts[0] || {}).id, day: 1 });
   const [importErr, setImportErr] = useState("");
 
@@ -917,7 +951,7 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
 }
 
 // ================= גיליון הוספה =================
-function AddSheet({ S, accounts, merchants, onClose, onSave }) {
+function AddSheet({ S, accounts, merchants, onClose, onPaste, onSave }) {
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState((accounts[0] || {}).id);
@@ -939,6 +973,8 @@ function AddSheet({ S, accounts, merchants, onClose, onSave }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
         <div style={S.sheetHandle} />
+        {/* קיצור דרך לזרימת הדבקת הודעות אשראי - סוגר את גיליון ההוספה ופותח את גיליון ההדבקה */}
+        <button className="miniBtn" style={{ width: "100%", marginBottom: 10 }} onClick={onPaste}>📩 הדבקת הודעות אשראי</button>
         <div style={S.segmented}>
           {[["expense", "הוצאה"], ["income", "הכנסה"], ["transfer", "העברה"]].map(([k, l]) => (
             <button key={k} className="segBtn" onClick={() => setType(k)} style={{ ...S.segBtn, ...(type === k ? S.segActive : {}) }}>{l}</button>
@@ -1100,25 +1136,27 @@ const styles = {
   app: {
     fontFamily: "'Heebo', system-ui, sans-serif", background: "#F3F5F2", minHeight: "100vh",
     maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column",
-    color: "#132A23", paddingBottom: 110, paddingTop: "env(safe-area-inset-top)",
+    color: "#132A23", paddingBottom: 124, paddingTop: "env(safe-area-inset-top)",
   },
-  header: { padding: "18px 20px 4px" },
-  headerRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  header: { padding: "18px 20px 0" },
   appTitle: { fontSize: 14, fontWeight: 700, letterSpacing: 2, color: "#7A8A82" },
+  pageTitle: { fontSize: 27, fontWeight: 900, marginTop: 2 },
   monthNav: { display: "flex", alignItems: "center", gap: 4, marginTop: 4 },
   monthLabel: { fontSize: 23, fontWeight: 900 },
   warnBanner: { margin: "8px 16px 0", background: "#FBEFD8", color: "#8A6414", borderRadius: 12, padding: "10px 14px", fontSize: 13, lineHeight: 1.5 },
-  tabs: { display: "flex", gap: 6, padding: "12px 16px 4px" },
-  tabBtn: { flex: 1, padding: "9px 0", borderRadius: 12, border: "none", background: "transparent", fontFamily: "inherit", fontSize: 15, fontWeight: 500, color: "#5B6B66", cursor: "pointer" },
-  tabActive: { background: "#132A23", color: "#EDF5EF", fontWeight: 700 },
-  main: { padding: "10px 16px 0", flex: 1 },
+  main: { padding: "12px 16px 0", flex: 1 },
+  // הבר התחתון: עטיפה קבועה בתחתית שמכילה את קפסולת הניווט ואת כפתור הפלוס
+  bottomWrap: {
+    position: "fixed", bottom: "calc(14px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
+    width: "calc(100% - 28px)", maxWidth: 452, display: "flex", alignItems: "center", gap: 10, zIndex: 40,
+  },
+  bottomNav: { flex: 1, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 8px", borderRadius: 999 },
+  // קרוסלת הווידג'טים בטאב תנועות: גלילה אופקית עם הצמדה לכל כרטיס
+  txWidgets: { display: "flex", gap: 10, overflowX: "auto", scrollSnapType: "x mandatory", margin: "0 0 12px", padding: "2px 2px 6px" },
+  txWidget: { minWidth: "76%", flex: "none", scrollSnapAlign: "start", background: "#FFFFFF", borderRadius: 18, padding: "14px 16px", boxShadow: "0 2px 8px rgba(19,42,35,0.06)" },
   card: { background: "#FFFFFF", borderRadius: 18, padding: "16px 16px 14px", marginBottom: 12, boxShadow: "0 2px 8px rgba(19,42,35,0.06)" },
   cardTitle: { fontSize: 13.5, fontWeight: 700, color: "#7A8A82", marginBottom: 8 },
   cardTitleRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  bigNumber: { fontSize: 34, fontWeight: 900, lineHeight: 1.15 },
-  bigSub: { fontSize: 15, fontWeight: 500, color: "#7A8A82" },
-  totalBarTrack: { marginTop: 12, height: 10, borderRadius: 6, background: "#E7EDE8", overflow: "hidden" },
-  totalBarFill: { height: "100%", borderRadius: 6, transition: "width .3s" },
   flexBreakdown: { marginTop: 10, fontSize: 12.5, color: "#7A8A82", lineHeight: 1.6 },
   hint: { fontSize: 13, color: "#7A8A82", lineHeight: 1.6, marginTop: 4 },
   accRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", fontSize: 15, borderBottom: "1px solid #F0F4F0" },

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wealthy-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server", "-p", "4519", "-c-1"],
+      "port": 4519,
+      "autoPort": false
+    }
+  ]
+}
