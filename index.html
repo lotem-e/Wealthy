@@ -260,11 +260,12 @@ function App() {
     const toAdd = [];
     for (const f of d.fixed) {
       if (f.startYM && ym < f.startYM) continue;
+      if (f.endYM && ym > f.endYM) continue; // #13: לא לייצר אחרי חודש העצירה
       if (d.fixedSkips.includes(`${f.id}|${ym}`)) continue;
       const exists = d.transactions.some((t) => t.fixedId === f.id && ymOf(t.date) === ym);
       if (!exists) {
         const day = pad2(Math.min(f.day || 1, 28));
-        toAdd.push({ id: uid(), type: "expense", amount: f.amount, accountId: f.accountId, categoryId: f.categoryId, date: `${ym}-${day}`, note: f.name, fixedId: f.id });
+        toAdd.push({ id: uid(), type: f.type || "expense", amount: f.amount, accountId: f.accountId, categoryId: f.categoryId, date: `${ym}-${day}`, note: f.name, fixedId: f.id });
       }
     }
     return toAdd;
@@ -274,8 +275,21 @@ function App() {
   // ולא בזמן גלישה בין חודשים (מה שגרם קודם לכתיבה שקטה בחודשים ישנים).
   useEffect(() => {
     const d = dataRef.current;
-    const toAdd = buildFixedFor(currentYM(), d);
-    if (toAdd.length) persist({ ...d, transactions: [...toAdd, ...d.transactions] });
+    const cur = currentYM();
+    // #2: מייצר קבועות לכל החודשים החסרים - מהחודש המוקדם ביותר של קבועה כלשהי ועד היום -
+    // כדי שחודש שלא נפתח לא יישאר בלי החיובים הקבועים שלו.
+    const starts = d.fixed.map((f) => f.startYM).filter(Boolean).sort();
+    let ym = starts.length ? starts[0] : cur;
+    if (ym > cur) return;
+    let txns = d.transactions;
+    const added = [];
+    let guard = 0;
+    while (ym <= cur && guard++ < 600) {
+      const monthAdds = buildFixedFor(ym, { ...d, transactions: txns });
+      if (monthAdds.length) { added.push(...monthAdds); txns = [...monthAdds, ...txns]; }
+      ym = addMonthsYM(ym, 1);
+    }
+    if (added.length) persist({ ...d, transactions: [...added, ...d.transactions] });
   }, [data.fixed.length]);
 
   // ---------- חישובים ----------
@@ -287,7 +301,10 @@ function App() {
   const variableSpent = monthTx.filter((t) => t.type === "expense" && !t.fixedId).reduce((s, t) => s + t.amount, 0);
   const monthIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const plannedFixed = data.fixed
-    .filter((f) => (!f.startYM || f.startYM <= viewYM) && !data.fixedSkips.includes(`${f.id}|${viewYM}`))
+    .filter((f) => (f.type || "expense") === "expense"
+      && (!f.startYM || f.startYM <= viewYM)
+      && (!f.endYM || viewYM <= f.endYM)
+      && !data.fixedSkips.includes(`${f.id}|${viewYM}`))
     .reduce((s, f) => s + f.amount, 0);
   const fixedForBudget = Math.max(plannedFixed, fixedSpent);
   const flexBudget = Math.max(0, data.budget - fixedForBudget);
@@ -728,7 +745,7 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
 
 // ================= ניהול =================
 function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin }) {
-  const [newFixed, setNewFixed] = useState({ name: "", amount: "", categoryId: "bills", accountId: (data.accounts[0] || {}).id, day: 1 });
+  const [newFixed, setNewFixed] = useState({ name: "", amount: "", type: "expense", categoryId: "bills", accountId: (data.accounts[0] || {}).id, day: 1 });
   const [importErr, setImportErr] = useState("");
 
   const upAccount = (id, field, value) => {
@@ -742,7 +759,13 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
     persist({ ...data, fixed: [...data.fixed, { id: uid(), ...newFixed, name: newFixed.name.trim(), amount: amt, day: parseInt(newFixed.day) || 1, startYM: currentYM() }] });
     setNewFixed({ ...newFixed, name: "", amount: "" });
   };
-  const delFixed = (id) => persist({ ...data, fixed: data.fixed.filter((f) => f.id !== id) });
+  const delFixed = (id) => persist({
+    ...data,
+    fixed: data.fixed.filter((f) => f.id !== id),
+    transactions: data.transactions.filter((t) => t.fixedId !== id), // #11: מוחק גם תנועות שנוצרו מהקבועה
+  });
+  // #13: עצירת קבועה - קובע חודש סיום, מפסיק יצירה עתידית אבל שומר את ההיסטוריה
+  const stopFixed = (id) => persist({ ...data, fixed: data.fixed.map((f) => (f.id === id ? { ...f, endYM: currentYM() } : f)) });
   const upMerchant = (id, categoryId) => persist({ ...data, merchants: data.merchants.map((m) => (m.id === id ? { ...m, categoryId } : m)) });
 
   const exportData = () => {
@@ -821,17 +844,30 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
 
       <section style={S.card}>
         <div style={S.cardTitle}>הוצאות קבועות</div>
-        {data.fixed.map((f) => (
-          <div key={f.id} style={S.accRow}>
-            <span>{catById(f.categoryId).emoji} {f.name} · {f.day} בחודש</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <b>{fmt(f.amount)}</b>
-              <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 14 }} onClick={() => delFixed(f.id)}>✕</button>
-            </span>
-          </div>
-        ))}
+        {data.fixed.map((f) => {
+          const isIncome = f.type === "income";
+          const day = Math.min(f.day || 1, 28);
+          return (
+            <div key={f.id} style={S.accRow}>
+              <span>
+                {isIncome ? "💰" : catById(f.categoryId).emoji} {f.name} · {day} בחודש
+                {f.endYM && <span style={{ color: "#7A8A82" }}> · עד {ymLabel(f.endYM)}</span>}
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <b style={{ color: isIncome ? "#1E7A5A" : "#132A23" }}>{isIncome ? "+" : ""}{fmt(f.amount)}</b>
+                {!f.endYM && <button className="ghostBtn" style={{ fontSize: 13, color: "#7A8A82" }} title="עצירה מהחודש הבא" onClick={() => stopFixed(f.id)}>⏹</button>}
+                <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 14 }} onClick={() => delFixed(f.id)}>✕</button>
+              </span>
+            </div>
+          );
+        })}
+        <div style={{ ...S.segmented, marginTop: 8 }}>
+          {[["expense", "הוצאה"], ["income", "הכנסה"]].map(([k, l]) => (
+            <button key={k} className="segBtn" onClick={() => setNewFixed({ ...newFixed, type: k })} style={{ ...S.segBtn, ...(newFixed.type === k ? S.segActive : {}) }}>{l}</button>
+          ))}
+        </div>
         <div style={S.fixedForm}>
-          <input type="text" placeholder="שם (שכירות…)" value={newFixed.name} onChange={(e) => setNewFixed({ ...newFixed, name: e.target.value })} style={{ ...S.textInput, flex: 1.4 }} />
+          <input type="text" placeholder={newFixed.type === "income" ? "שם (משכורת…)" : "שם (שכירות…)"} value={newFixed.name} onChange={(e) => setNewFixed({ ...newFixed, name: e.target.value })} style={{ ...S.textInput, flex: 1.4 }} />
           <input className="numInput" type="number" placeholder="₪" value={newFixed.amount} onChange={(e) => setNewFixed({ ...newFixed, amount: e.target.value })} style={{ ...S.textInput, flex: 0.8 }} />
         </div>
         <div style={S.fixedForm}>
