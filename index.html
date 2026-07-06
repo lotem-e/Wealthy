@@ -88,16 +88,28 @@ const ymLabel = (ym) => { const [y, m] = ym.split("-").map(Number); return `${MO
 const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 const heDate = (d) => d.split("-").reverse().join(".");
 
+const SCHEMA_VERSION = 1;
+
 const EMPTY_DATA = {
+  schemaVersion: SCHEMA_VERSION,
   accounts: DEFAULT_ACCOUNTS, merchants: [], transactions: [],
   fixed: [], fixedSkips: [], budget: 0,
 };
+
+// שדרוג מבנה נתונים: נקודת עגינה שתאפשר לשנות מבנה נתונים ישן בבטחה בעתיד.
+// כרגע אין שינויי מבנה, אז זו פעולה ריקה שרק מסמנת את הגרסה הנוכחית.
+function migrate(data) {
+  if (!data) return data;
+  let d = data;
+  // בעתיד: if ((d.schemaVersion || 0) < 2) { d = { ...d, /* שינוי מבנה */ }; }
+  return { ...d, schemaVersion: SCHEMA_VERSION };
+}
 
 // ================= אחסון מקומי =================
 const store = {
   available: true,
   load() {
-    try { const v = localStorage.getItem(STORAGE_KEY); return v ? { ...EMPTY_DATA, ...JSON.parse(v) } : null; }
+    try { const v = localStorage.getItem(STORAGE_KEY); return v ? migrate({ ...EMPTY_DATA, ...JSON.parse(v) }) : null; }
     catch (e) { this.available = false; return null; }
   },
   save(d) {
@@ -164,6 +176,7 @@ function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
   const [txFilterAcc, setTxFilterAcc] = useState("all");
+  const [selectedTx, setSelectedTx] = useState(null);
 
   const dataRef = React.useRef(data);
   dataRef.current = data;
@@ -182,7 +195,7 @@ function App() {
       try {
         const cloud = await cloudLoad(session.user.id);
         if (cloud && cloud.transactions) {
-          const merged = { ...EMPTY_DATA, ...cloud };
+          const merged = migrate({ ...EMPTY_DATA, ...cloud });
           setData(merged);
           store.save(merged);
           setSyncStatus("synced");
@@ -203,21 +216,29 @@ function App() {
 
   const logout = async () => { await supa.auth.signOut(); setLocalOnly(false); };
 
-  // מימוש הוצאות קבועות לחודש הנצפה
-  useEffect(() => {
-    if (viewYM > currentYM()) return;
+  // בונה (בלי תופעות לוואי) את התנועות הקבועות שחסרות בחודש נתון.
+  const buildFixedFor = (ym, d) => {
+    if (ym > currentYM()) return [];
     const toAdd = [];
-    for (const f of data.fixed) {
-      if (f.startYM && viewYM < f.startYM) continue;
-      if (data.fixedSkips.includes(`${f.id}|${viewYM}`)) continue;
-      const exists = data.transactions.some((t) => t.fixedId === f.id && ymOf(t.date) === viewYM);
+    for (const f of d.fixed) {
+      if (f.startYM && ym < f.startYM) continue;
+      if (d.fixedSkips.includes(`${f.id}|${ym}`)) continue;
+      const exists = d.transactions.some((t) => t.fixedId === f.id && ymOf(t.date) === ym);
       if (!exists) {
         const day = pad2(Math.min(f.day || 1, 28));
-        toAdd.push({ id: uid(), type: "expense", amount: f.amount, accountId: f.accountId, categoryId: f.categoryId, date: `${viewYM}-${day}`, note: f.name, fixedId: f.id });
+        toAdd.push({ id: uid(), type: "expense", amount: f.amount, accountId: f.accountId, categoryId: f.categoryId, date: `${ym}-${day}`, note: f.name, fixedId: f.id });
       }
     }
-    if (toAdd.length) persist({ ...data, transactions: [...toAdd, ...data.transactions] });
-  }, [viewYM, data.fixed.length]);
+    return toAdd;
+  };
+
+  // יצירת ההוצאות הקבועות של החודש הנוכחי - רק בפתיחה ובעת הוספת קבועה חדשה,
+  // ולא בזמן גלישה בין חודשים (מה שגרם קודם לכתיבה שקטה בחודשים ישנים).
+  useEffect(() => {
+    const d = dataRef.current;
+    const toAdd = buildFixedFor(currentYM(), d);
+    if (toAdd.length) persist({ ...d, transactions: [...toAdd, ...d.transactions] });
+  }, [data.fixed.length]);
 
   // ---------- חישובים ----------
   const monthTx = useMemo(
@@ -300,6 +321,26 @@ function App() {
     persist(next);
   };
 
+  // עדכון תנועה קיימת: מקבל ״טלאי״ של שדות שהשתנו ומחיל רק אותם.
+  const editTransaction = (id, patch) => {
+    let d = dataRef.current;
+    let merchantId, setMerchant = false;
+    if (patch.merchantName !== undefined) {
+      const r = ensureMerchant(patch.merchantName, patch.categoryId || "other", d);
+      merchantId = r.merchantId; d = r.data; setMerchant = true;
+    }
+    const transactions = d.transactions.map((t) => {
+      if (t.id !== id) return t;
+      const up = { ...t };
+      ["amount", "accountId", "categoryId", "date", "note"].forEach((k) => {
+        if (patch[k] !== undefined) up[k] = patch[k];
+      });
+      if (setMerchant) up.merchantId = merchantId;
+      return up;
+    });
+    persist({ ...d, transactions });
+  };
+
   const S = styles;
 
   if (session === undefined) {
@@ -343,7 +384,7 @@ function App() {
         )}
         {tab === "tx" && (
           <TxTab S={S} monthTx={monthTx} accounts={data.accounts} accById={accById} merchById={merchById}
-            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} />
+            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} onOpen={setSelectedTx} />
         )}
         {tab === "manage" && <ManageTab S={S} data={data} persist={persist} session={session} syncStatus={syncStatus} onLogout={logout} onLogin={() => setLocalOnly(false)} />}
       </main>
@@ -359,6 +400,13 @@ function App() {
         <SmsSheet S={S} accounts={data.accounts} merchants={data.merchants}
           onClose={() => setSmsOpen(false)}
           onConfirm={(items) => { addTransactions(items); setSmsOpen(false); setTab("tx"); }} />
+      )}
+      {selectedTx && (
+        <TxDetailSheet key={selectedTx.id} S={S} tx={selectedTx} accounts={data.accounts} merchants={data.merchants}
+          accById={accById} merchById={merchById}
+          onClose={() => setSelectedTx(null)}
+          onSave={(patch) => { editTransaction(selectedTx.id, patch); setSelectedTx(null); }}
+          onDelete={() => { deleteTx(selectedTx); setSelectedTx(null); }} />
       )}
     </div>
   );
@@ -491,7 +539,7 @@ function HomeTab({ S, budget, flexBudget, flexRemaining, fixedForBudget, variabl
 }
 
 // ================= תנועות =================
-function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete }) {
+function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete, onOpen }) {
   const list = monthTx.filter((t) => filterAcc === "all" || t.accountId === filterAcc || t.toAccountId === filterAcc);
   return (
     <div>
@@ -513,7 +561,7 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
           t.fixedId ? "קבועה" : null,
         ].filter(Boolean).join(" · ");
         return (
-          <div key={t.id} style={S.txRow}>
+          <div key={t.id} style={{ ...S.txRow, cursor: "pointer" }} onClick={() => onOpen(t)}>
             <div style={S.txEmoji}>{isTransfer ? "⇄" : isIncome ? "💰" : c.emoji}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={S.txTitle}>{title}</div>
@@ -522,10 +570,113 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
             <div style={{ ...S.txAmount, color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
               {isIncome ? "+" : ""}{fmt(t.amount)}
             </div>
-            <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 15 }} onClick={() => onDelete(t)} aria-label="מחיקה">✕</button>
+            <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 15 }} onClick={(e) => { e.stopPropagation(); onDelete(t); }} aria-label="מחיקה">✕</button>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ================= גיליון פרטי תנועה =================
+function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose, onSave, onDelete }) {
+  const merchant = tx.merchantId ? merchById(tx.merchantId) : null;
+  const isTransfer = tx.type === "transfer";
+  const isIncome = tx.type === "income";
+  const c = catById(tx.categoryId);
+  const title = (merchant && merchant.name) || tx.note || (isTransfer ? "העברה" : c.name);
+
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState(String(tx.amount));
+  const [accountId, setAccountId] = useState(tx.accountId);
+  const [categoryId, setCategoryId] = useState(tx.categoryId);
+  const [merchantName, setMerchantName] = useState(merchant ? merchant.name : "");
+  const [date, setDate] = useState(tx.date);
+  const [note, setNote] = useState(tx.note || "");
+
+  const save = () => {
+    const patch = { amount: parseFloat(amount) || 0, accountId, date, note: note.trim() };
+    if (!isTransfer) {
+      patch.categoryId = isIncome ? "other" : categoryId;
+      patch.merchantName = merchantName;
+    }
+    onSave(patch);
+  };
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={S.sheetHandle} />
+        {!editing ? (
+          <React.Fragment>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={S.sheetTitle}>{title}</div>
+              <div style={{ fontWeight: 900, fontSize: 22, whiteSpace: "nowrap", color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
+                {isIncome ? "+" : ""}{fmt(tx.amount)}
+              </div>
+            </div>
+            <div style={S.detailRow}><span style={S.detailKey}>סוג</span><span>{isTransfer ? "העברה" : isIncome ? "הכנסה" : "הוצאה"}</span></div>
+            {!isTransfer && !isIncome && (
+              <div style={S.detailRow}><span style={S.detailKey}>קטגוריה</span><span>{c.emoji} {c.name}</span></div>
+            )}
+            <div style={S.detailRow}>
+              <span style={S.detailKey}>{isTransfer ? "מ / אל" : "חשבון"}</span>
+              <span>{isTransfer ? `${(accById(tx.accountId) || {}).name} ← ${(accById(tx.toAccountId) || {}).name}` : (accById(tx.accountId) || {}).name}</span>
+            </div>
+            <div style={S.detailRow}><span style={S.detailKey}>תאריך</span><span>{heDate(tx.date)}</span></div>
+            {tx.instTotal && <div style={S.detailRow}><span style={S.detailKey}>תשלומים</span><span>תשלום {tx.instIdx}/{tx.instTotal}</span></div>}
+            {tx.fixedId && <div style={S.detailRow}><span style={S.detailKey}>הוצאה קבועה</span><span>כן</span></div>}
+            <div style={{ ...S.fieldLabel, marginTop: 16 }}>הערה</div>
+            <div style={S.noteBlock}>{tx.note ? tx.note : <span style={{ color: "#9AA8A1" }}>אין הערה</span>}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+              <button className="primaryBtn" style={{ ...S.primaryBtn, marginTop: 0, flex: 1 }} onClick={() => setEditing(true)}>עריכה</button>
+              <button className="miniBtn" style={{ background: "#F6E4E2", color: "#B0433B", padding: "12px 18px" }} onClick={onDelete}>מחיקה</button>
+            </div>
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <div style={S.sheetTitle}>עריכת תנועה</div>
+            <label style={S.fieldLabel}>סכום</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ ...S.shekel, fontSize: 22 }}>₪</span>
+              <input className="numInput" type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} style={S.amountInput} />
+            </div>
+            <label style={S.fieldLabel}>{isTransfer ? "מחשבון" : "חשבון"}</label>
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={S.select}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            {!isTransfer && (
+              <React.Fragment>
+                <label style={S.fieldLabel}>{isIncome ? "מקור (לא חובה)" : "בית עסק"}</label>
+                <input type="text" list="txd-merchants-dl" value={merchantName} onChange={(e) => setMerchantName(e.target.value)} style={S.textInput} />
+                <datalist id="txd-merchants-dl">
+                  {merchants.map((m) => <option key={m.id} value={m.name} />)}
+                </datalist>
+                {!isIncome && (
+                  <React.Fragment>
+                    <label style={S.fieldLabel}>קטגוריה</label>
+                    <div style={S.catGrid}>
+                      {CATEGORIES.map((cc) => (
+                        <button key={cc.id} className="catChip" onClick={() => setCategoryId(cc.id)} style={{ ...S.catChip, ...(categoryId === cc.id ? S.catChipActive : {}) }}>
+                          <span>{cc.emoji}</span> {cc.name}
+                        </button>
+                      ))}
+                    </div>
+                  </React.Fragment>
+                )}
+              </React.Fragment>
+            )}
+            <label style={S.fieldLabel}>תאריך</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={S.textInput} />
+            <label style={S.fieldLabel}>הערה</label>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} style={{ ...S.textarea, marginTop: 0 }} rows={3} />
+            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+              <button className="primaryBtn" style={{ ...S.primaryBtn, marginTop: 0, flex: 1 }} onClick={save}>שמירה</button>
+              <button className="miniBtn" style={{ padding: "12px 18px" }} onClick={() => setEditing(false)}>ביטול</button>
+            </div>
+          </React.Fragment>
+        )}
+      </div>
     </div>
   );
 }
@@ -565,7 +716,7 @@ function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin })
       try {
         const parsed = JSON.parse(reader.result);
         if (!parsed.transactions || !parsed.accounts) throw new Error("bad");
-        persist({ ...EMPTY_DATA, ...parsed });
+        persist(migrate({ ...EMPTY_DATA, ...parsed }));
         setImportErr("");
       } catch (e) {
         setImportErr("הקובץ לא זוהה כגיבוי תקין של Wealthy.");
@@ -914,6 +1065,9 @@ const styles = {
   textInput: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 15, background: "#F7F9F6" },
   textarea: { width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 14.5, background: "#F7F9F6", resize: "vertical" },
   reviewRow: { background: "#F7F9F6", borderRadius: 14, padding: "10px 10px", marginBottom: 10 },
+  detailRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", fontSize: 15, borderBottom: "1px solid #F0F4F0" },
+  detailKey: { color: "#7A8A82", fontSize: 14 },
+  noteBlock: { background: "#F7F9F6", borderRadius: 12, padding: "12px 14px", fontSize: 14.5, lineHeight: 1.6, minHeight: 20, whiteSpace: "pre-wrap" },
   primaryBtn: { width: "100%", marginTop: 20, padding: "14px 0", borderRadius: 14, background: "#132A23", color: "#EDF5EF", border: "none", fontFamily: "inherit", fontSize: 17, fontWeight: 700, cursor: "pointer" },
 };
 
