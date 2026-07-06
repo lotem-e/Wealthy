@@ -669,10 +669,10 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
         <div className="noScrollbar" style={S.txWidgets}>
           <section style={S.txWidget}>
             <div style={S.cardTitle}>סה״כ בתצוגה · {list.length} תנועות</div>
-            <div style={{ fontSize: 27, fontWeight: 900, color: net >= 0 ? "#1E7A5A" : "#132A23" }}>
-              {net > 0 ? "+" : ""}{fmtSigned(net)}
+            <div dir="ltr" style={{ fontSize: 27, fontWeight: 900, textAlign: "right", color: net >= 0 ? "#1E7A5A" : "#132A23" }}>
+              {net > 0 ? "+" : net < 0 ? "−" : ""}{fmt(Math.abs(net))}
             </div>
-            <div style={S.flexBreakdown}>נכנס {fmt(incomeSum)} · יצא {fmt(expenseSum)}</div>
+            <div style={S.flexBreakdown}>נכנס <b style={{ color: "#1E7A5A" }}>{fmt(incomeSum)}</b> · יצא <b style={{ color: "#C93B3B" }}>{fmt(expenseSum)}</b></div>
           </section>
 
           <section style={S.txWidget}>
