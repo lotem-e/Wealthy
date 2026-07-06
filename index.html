@@ -19,6 +19,8 @@
   input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid #1E7A5A; outline-offset: 2px; }
   /* מונע זום אוטומטי של iOS על פוקוס בשדה - הוא מזמזם כשגודל הפונט קטן מ-16px */
   input, select, textarea { font-size: 16px; }
+  /* iOS מתעלם מ-width על שדות תאריך ומרנדר ברוחב פנימי שבורח מהמסך; ביטול העיצוב המקורי גורם לו לכבד width */
+  input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
   .numInput { -moz-appearance: textfield; }
   .ghostBtn { background: none; border: none; cursor: pointer; font-size: 22px; color: #40544D; padding: 4px 10px; border-radius: 8px; }
