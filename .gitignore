@@ -7,3 +7,7 @@
 
 # Logs and temp
 *.log
+
+# Personal financial data - NEVER commit to the public repo
+import-data/
+*.csv
