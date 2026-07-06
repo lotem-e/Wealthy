@@ -87,7 +87,8 @@ const fmt = (n) => {
   const hasAgorot = Math.round(v * 100) % 100 !== 0; // הצג אגורות רק כשיש; מספר עגול נשאר נקי
   return "₪" + v.toLocaleString("he-IL", { minimumFractionDigits: hasAgorot ? 2 : 0, maximumFractionDigits: 2 });
 };
-const fmtSigned = (n) => (n < 0 ? "־" : "") + fmt(Math.abs(n));
+// מינוס ASCII רגיל ולא מקף עברי: המקף העברי הוא תו RTL חזק ושובר את מיקום הסימן
+const fmtSigned = (n) => (n < 0 ? "-" : "") + fmt(Math.abs(n));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const pad2 = (n) => String(n).padStart(2, "0");
 const todayStr = () => {
@@ -433,7 +434,6 @@ function App() {
   return (
     <div dir="rtl" style={S.app}>
       <header style={S.header}>
-        <div style={S.appTitle}>Wealthy</div>
         {/* כותרת גדולה מתחלפת לפי הטאב הפעיל, כמו Large Title ב-iOS */}
         <div style={S.pageTitle}>{(TABS.find((t) => t.key === tab) || TABS[0]).label}</div>
       </header>
@@ -553,12 +553,12 @@ function BalancesTab({ S, accounts, balances, totalBalance }) {
     <section style={S.card}>
       <div style={S.cardTitleRow}>
         <div style={S.cardTitle}>מאזן כולל</div>
-        <div style={{ fontWeight: 900, fontSize: 18, color: totalBalance < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(totalBalance)}</div>
+        <div style={{ ...S.ltrNum, fontWeight: 900, fontSize: 18, color: totalBalance < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(totalBalance)}</div>
       </div>
       {accounts.map((a) => (
         <div key={a.id} style={S.accRow}>
           <span>{a.name}</span>
-          <b style={{ color: (balances[a.id] || 0) < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(balances[a.id] || 0)}</b>
+          <b style={{ ...S.ltrNum, color: (balances[a.id] || 0) < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(balances[a.id] || 0)}</b>
         </div>
       ))}
     </section>
@@ -616,7 +616,8 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
           <section style={S.txWidget}>
             <div style={S.cardTitle}>סה״כ בתצוגה · {list.length} תנועות</div>
             <div style={{ fontSize: 27, fontWeight: 900, color: net >= 0 ? "#1E7A5A" : "#132A23" }}>
-              {net > 0 ? "+" : ""}{fmtSigned(net)}
+              {/* span פנימי כדי לא לשנות את יישור הבלוק, רק את סדר הסימן והמספר */}
+              <span style={S.ltrNum}>{net > 0 ? "+" : ""}{fmtSigned(net)}</span>
             </div>
             <div style={S.flexBreakdown}>נכנס {fmt(incomeSum)} · יצא {fmt(expenseSum)}</div>
           </section>
@@ -673,8 +674,9 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
               <div style={S.txTitle}>{title}</div>
               <div style={S.txMeta}>{meta}</div>
             </div>
-            <div style={{ ...S.txAmount, color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
-              {isIncome ? "+" : ""}{fmt(t.amount)}
+            {/* הכנסה: ירוק כהה ומודגש עם פלוס. הוצאה: בורדו בעובי רגיל עם מינוס. העברה: אפור בלי סימן. */}
+            <div style={{ ...S.txAmount, ...(isIncome ? { color: "#1E7A5A" } : isTransfer ? { color: "#7A8A82" } : { color: "#7E3B47", fontWeight: 400 }) }}>
+              {isIncome ? "+" : isTransfer ? "" : "-"}{fmt(t.amount)}
             </div>
             <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 15 }} onClick={(e) => { e.stopPropagation(); onDelete(t); }} aria-label="מחיקה">✕</button>
           </div>
@@ -719,11 +721,11 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
           <React.Fragment>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div style={S.sheetTitle}>{title}</div>
-              <div style={{ fontWeight: 900, fontSize: 22, whiteSpace: "nowrap", color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
-                {isIncome ? "+" : ""}{fmt(tx.amount)}
+              {/* אותה שפה כמו ברשימה: פלוס ירוק מודגש, מינוס בורדו רגיל */}
+              <div style={{ ...S.ltrNum, fontWeight: isIncome || isTransfer ? 900 : 400, fontSize: 22, whiteSpace: "nowrap", color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#7E3B47" }}>
+                {isIncome ? "+" : isTransfer ? "" : "-"}{fmt(tx.amount)}
               </div>
             </div>
-            <div style={S.detailRow}><span style={S.detailKey}>סוג</span><span>{isTransfer ? "העברה" : isIncome ? "הכנסה" : "הוצאה"}</span></div>
             {!isTransfer && !isIncome && (
               <div style={S.detailRow}><span style={S.detailKey}>קטגוריה</span><span>{c.emoji} {c.name}</span></div>
             )}
@@ -1149,8 +1151,7 @@ const styles = {
     color: "#132A23", paddingBottom: 124, paddingTop: "env(safe-area-inset-top)",
   },
   header: { padding: "18px 20px 0" },
-  appTitle: { fontSize: 14, fontWeight: 700, letterSpacing: 2, color: "#7A8A82" },
-  pageTitle: { fontSize: 27, fontWeight: 900, marginTop: 2 },
+  pageTitle: { fontSize: 27, fontWeight: 900 },
   monthNav: { display: "flex", alignItems: "center", gap: 4, marginTop: 4 },
   monthLabel: { fontSize: 23, fontWeight: 900 },
   warnBanner: { margin: "8px 16px 0", background: "#FBEFD8", color: "#8A6414", borderRadius: 12, padding: "10px 14px", fontSize: 13, lineHeight: 1.5 },
@@ -1180,7 +1181,9 @@ const styles = {
   txEmoji: { fontSize: 20 },
   txTitle: { fontWeight: 500, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   txMeta: { fontSize: 12.5, color: "#8A978F" },
-  txAmount: { fontWeight: 700, fontSize: 15, whiteSpace: "nowrap" },
+  // בידוד LTR למספרים עם סימן: בלעדיו ה-RTL של העברית דוחף את הפלוס/מינוס לימין המספר
+  ltrNum: { direction: "ltr", unicodeBidi: "isolate" },
+  txAmount: { fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", direction: "ltr", unicodeBidi: "isolate" },
   select: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 16, background: "#F7F9F6", marginBottom: 12, color: "#132A23" },
   budgetInput: { width: 140, padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 18, fontWeight: 700, textAlign: "center", background: "#F7F9F6" },
   shekel: { color: "#7A8A82", fontWeight: 500 },
