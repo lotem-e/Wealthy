@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>המחברת</title>
+<meta name="theme-color" content="#132A23" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="המחברת" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap');
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #F3F5F2; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid #1E7A5A; outline-offset: 2px; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .numInput { -moz-appearance: textfield; }
+  .ghostBtn { background: none; border: none; cursor: pointer; font-size: 22px; color: #40544D; padding: 4px 10px; border-radius: 8px; }
+  .ghostBtn:active { background: #E3EAE5; }
+  .todayBtn { background: #E3EAE5; border: none; border-radius: 999px; padding: 4px 12px; font-family: inherit; font-size: 13px; color: #40544D; cursor: pointer; }
+  .smsBtn { background: #132A23; color: #EDF5EF; border: none; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+  .smsBtn:active { transform: scale(0.97); }
+  .miniBtn { background: #E3EAE5; border: none; border-radius: 999px; padding: 7px 14px; font-family: inherit; font-size: 13.5px; font-weight: 500; color: #132A23; cursor: pointer; }
+  .linkBtn { background: none; border: none; width: 100%; margin-top: 10px; font-family: inherit; font-size: 14px; color: #5B6B66; cursor: pointer; text-decoration: underline; }
+  .tabBtn:active, .catChip:active, .segBtn:active { transform: scale(0.97); }
+  .fab {
+    position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #132A23; color: #EDF5EF; font-size: 32px; line-height: 1;
+    border: none; cursor: pointer; box-shadow: 0 6px 18px rgba(19,42,35,0.35); z-index: 40;
+  }
+  .fab:active { transform: translateX(-50%) scale(0.94); }
+  .primaryBtn:active { transform: scale(0.98); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+// ================= קבועים =================
+const STORAGE_KEY = "mahberet-pwa-v1";
+
+const CATEGORIES = [
+  { id: "food", name: "מזון וסופר", emoji: "🛒" },
+  { id: "eatout", name: "אוכל בחוץ", emoji: "🍜" },
+  { id: "transport", name: "תחבורה", emoji: "🚌" },
+  { id: "housing", name: "דיור", emoji: "🏠" },
+  { id: "bills", name: "חשבונות", emoji: "🧾" },
+  { id: "subs", name: "מנויים", emoji: "🔁" },
+  { id: "shopping", name: "קניות", emoji: "🛍️" },
+  { id: "health", name: "בריאות", emoji: "💊" },
+  { id: "fun", name: "בילויים", emoji: "🎬" },
+  { id: "other", name: "אחר", emoji: "📦" },
+];
+
+const DEFAULT_ACCOUNTS = [
+  { id: "bank", name: "עו״ש בנק", opening: 0, hint: "" },
+  { id: "invest", name: "השקעות", opening: 0, hint: "" },
+  { id: "ccA", name: "אשראי א׳", opening: 0, hint: "" },
+  { id: "ccB", name: "אשראי ב׳", opening: 0, hint: "" },
+];
+
+const MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+
+// ================= עזרים =================
+const fmt = (n) => "₪" + Number(n || 0).toLocaleString("he-IL", { maximumFractionDigits: 0 });
+const fmtSigned = (n) => (n < 0 ? "־" : "") + fmt(Math.abs(n));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad2 = (n) => String(n).padStart(2, "0");
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+const ymOf = (dateStr) => dateStr.slice(0, 7);
+const currentYM = () => todayStr().slice(0, 7);
+const addMonthsYM = (ym, delta) => {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+};
+const ymLabel = (ym) => { const [y, m] = ym.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
+const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
+const heDate = (d) => d.split("-").reverse().join(".");
+
+const EMPTY_DATA = {
+  accounts: DEFAULT_ACCOUNTS, merchants: [], transactions: [],
+  fixed: [], fixedSkips: [], budget: 0,
+};
+
+// ================= אחסון מקומי =================
+const store = {
+  available: true,
+  load() {
+    try { const v = localStorage.getItem(STORAGE_KEY); return v ? { ...EMPTY_DATA, ...JSON.parse(v) } : null; }
+    catch (e) { this.available = false; return null; }
+  },
+  save(d) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); return true; }
+    catch (e) { this.available = false; return false; }
+  },
+};
+
+// ================= סנכרון ענן (Supabase) =================
+const SUPABASE_URL = "https://cgwaxjtebgvvtcdvfzvk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_wsWXNshz60OqZuUR1PxaFQ_Xr68XJhQ";
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function cloudLoad(userId) {
+  const { data, error } = await supa.from("app_data").select("data").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data ? data.data : null;
+}
+
+let saveTimer = null;
+function cloudSaveDebounced(userId, payload, onStatus) {
+  onStatus("saving");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const { error } = await supa.from("app_data").upsert({ user_id: userId, data: payload });
+      if (error) throw error;
+      onStatus("synced");
+    } catch (e) {
+      onStatus("offline");
+    }
+  }, 800);
+}
+
+// ================= מפענח הודעות ישראכרט =================
+// פורמט: "בכרטיסך המסתיים ב- 8883, אושרה עסקה ב-03/07 בסך 34.00 ש"ח בSCHNITT."
+function parseSmsText(text) {
+  const re = /המסתיים ב-?\s*(\d{4})[\s\S]{0,40}?עסקה ב-?\s*(\d{1,2}\/\d{1,2})[\s\S]{0,20}?בסך\s*([\d,]+(?:\.\d+)?)\s*ש["״]ח\s*ב([\s\S]+?)\./g;
+  const now = new Date();
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const card = m[1];
+    const [dd, mm] = m[2].split("/").map(Number);
+    const amount = parseFloat(m[3].replace(/,/g, ""));
+    const merchant = m[4].replace(/\s+/g, " ").trim();
+    if (!amount || !dd || !mm) continue;
+    let year = now.getFullYear();
+    // תאריך עתידי משמעותית → כנראה סוף השנה שעברה
+    if (new Date(year, mm - 1, dd) - now > 5 * 86400000) year -= 1;
+    out.push({ amount, merchant, cardHint: card, date: `${year}-${pad2(mm)}-${pad2(dd)}` });
+  }
+  return out;
+}
+
+// ================= רכיב ראשי =================
+function App() {
+  const [session, setSession] = useState(undefined); // undefined=בבדיקה, null=לא מחוברת
+  const [localOnly, setLocalOnly] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | saving | synced | offline
+  const [data, setData] = useState(() => store.load() || EMPTY_DATA);
+  const [viewYM, setViewYM] = useState(currentYM());
+  const [tab, setTab] = useState("home");
+  const [addOpen, setAddOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [txFilterAcc, setTxFilterAcc] = useState("all");
+
+  const dataRef = React.useRef(data);
+  dataRef.current = data;
+
+  // מעקב אחרי מצב התחברות
+  useEffect(() => {
+    supa.auth.getSession().then(({ data: d }) => setSession(d.session));
+    const { data: sub } = supa.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // בהתחברות: מושכים מהענן; אם הענן ריק — דוחפים את המקומי
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      try {
+        const cloud = await cloudLoad(session.user.id);
+        if (cloud && cloud.transactions) {
+          const merged = { ...EMPTY_DATA, ...cloud };
+          setData(merged);
+          store.save(merged);
+          setSyncStatus("synced");
+        } else {
+          cloudSaveDebounced(session.user.id, dataRef.current, setSyncStatus);
+        }
+      } catch (e) {
+        setSyncStatus("offline");
+      }
+    })();
+  }, [session ? session.user.id : null]);
+
+  const persist = (next) => {
+    setData(next);
+    store.save(next);
+    if (session) cloudSaveDebounced(session.user.id, next, setSyncStatus);
+  };
+
+  const logout = async () => { await supa.auth.signOut(); setLocalOnly(false); };
+
+  // מימוש הוצאות קבועות לחודש הנצפה
+  useEffect(() => {
+    if (viewYM > currentYM()) return;
+    const toAdd = [];
+    for (const f of data.fixed) {
+      if (f.startYM && viewYM < f.startYM) continue;
+      if (data.fixedSkips.includes(`${f.id}|${viewYM}`)) continue;
+      const exists = data.transactions.some((t) => t.fixedId === f.id && ymOf(t.date) === viewYM);
+      if (!exists) {
+        const day = pad2(Math.min(f.day || 1, 28));
+        toAdd.push({ id: uid(), type: "expense", amount: f.amount, accountId: f.accountId, categoryId: f.categoryId, date: `${viewYM}-${day}`, note: f.name, fixedId: f.id });
+      }
+    }
+    if (toAdd.length) persist({ ...data, transactions: [...toAdd, ...data.transactions] });
+  }, [viewYM, data.fixed.length]);
+
+  // ---------- חישובים ----------
+  const monthTx = useMemo(
+    () => data.transactions.filter((t) => ymOf(t.date) === viewYM).sort((a, b) => (a.date < b.date ? 1 : -1)),
+    [data.transactions, viewYM]
+  );
+  const fixedSpent = monthTx.filter((t) => t.type === "expense" && t.fixedId).reduce((s, t) => s + t.amount, 0);
+  const variableSpent = monthTx.filter((t) => t.type === "expense" && !t.fixedId).reduce((s, t) => s + t.amount, 0);
+  const monthIncome = monthTx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const plannedFixed = data.fixed.filter((f) => !f.startYM || f.startYM <= viewYM).reduce((s, f) => s + f.amount, 0);
+  const fixedForBudget = Math.max(plannedFixed, fixedSpent);
+  const flexBudget = Math.max(0, data.budget - fixedForBudget);
+  const flexRemaining = flexBudget - variableSpent;
+
+  const balances = useMemo(() => {
+    const b = {};
+    for (const a of data.accounts) b[a.id] = Number(a.opening) || 0;
+    for (const t of data.transactions) {
+      if (t.type === "expense") b[t.accountId] = (b[t.accountId] || 0) - t.amount;
+      else if (t.type === "income") b[t.accountId] = (b[t.accountId] || 0) + t.amount;
+      else if (t.type === "transfer") {
+        b[t.accountId] = (b[t.accountId] || 0) - t.amount;
+        b[t.toAccountId] = (b[t.toAccountId] || 0) + t.amount;
+      }
+    }
+    return b;
+  }, [data.accounts, data.transactions]);
+  const totalBalance = Object.values(balances).reduce((s, v) => s + v, 0);
+
+  const spentByCat = useMemo(() => {
+    const m = {};
+    for (const t of monthTx) if (t.type === "expense") m[t.categoryId] = (m[t.categoryId] || 0) + t.amount;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [monthTx]);
+
+  const spentByMerchant = useMemo(() => {
+    const m = {};
+    for (const t of monthTx) { if (t.type !== "expense" || !t.merchantId) continue; m[t.merchantId] = (m[t.merchantId] || 0) + t.amount; }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [monthTx]);
+
+  const accById = (id) => data.accounts.find((a) => a.id === id);
+  const merchById = (id) => data.merchants.find((m) => m.id === id);
+
+  // ---------- פעולות ----------
+  const ensureMerchant = (name, categoryId, d) => {
+    const clean = (name || "").trim();
+    if (!clean) return { merchantId: null, data: d };
+    const existing = d.merchants.find((m) => m.name === clean);
+    if (existing) return { merchantId: existing.id, data: d };
+    const m = { id: uid(), name: clean, categoryId };
+    return { merchantId: m.id, data: { ...d, merchants: [...d.merchants, m] } };
+  };
+
+  const addTransactions = (items) => {
+    let d = { ...data };
+    const newTx = [];
+    for (const it of items) {
+      let merchantId = null;
+      if (it.merchantName) { const r = ensureMerchant(it.merchantName, it.categoryId, d); merchantId = r.merchantId; d = r.data; }
+      const N = Math.max(1, parseInt(it.installments) || 1);
+      if (it.type === "expense" && N > 1) {
+        const per = Math.round((it.amount / N) * 100) / 100;
+        const groupId = uid();
+        for (let i = 0; i < N; i++) {
+          const amt = i === N - 1 ? Math.round((it.amount - per * (N - 1)) * 100) / 100 : per;
+          const dt = addMonthsYM(ymOf(it.date), i) + "-" + it.date.slice(8);
+          newTx.push({ id: uid(), type: "expense", amount: amt, accountId: it.accountId, merchantId, categoryId: it.categoryId, date: dt, note: it.note, groupId, instIdx: i + 1, instTotal: N });
+        }
+      } else {
+        newTx.push({ id: uid(), type: it.type, amount: it.amount, accountId: it.accountId, toAccountId: it.toAccountId || null, merchantId, categoryId: it.categoryId, date: it.date, note: it.note });
+      }
+    }
+    persist({ ...d, transactions: [...newTx, ...d.transactions] });
+  };
+
+  const deleteTx = (t) => {
+    let next = { ...data, transactions: data.transactions.filter((x) => x.id !== t.id) };
+    if (t.fixedId) next.fixedSkips = [...data.fixedSkips, `${t.fixedId}|${ymOf(t.date)}`];
+    persist(next);
+  };
+
+  const S = styles;
+
+  if (session === undefined) {
+    return <div dir="rtl" style={{ ...S.app, alignItems: "center", justifyContent: "center" }}><div style={{ color: "#5B6B66" }}>רגע…</div></div>;
+  }
+  if (!session && !localOnly) {
+    return <LoginScreen S={S} onLocalOnly={() => setLocalOnly(true)} />;
+  }
+
+  return (
+    <div dir="rtl" style={S.app}>
+      <header style={S.header}>
+        <div style={S.headerRow}>
+          <div style={S.appTitle}>המחברת</div>
+          <button className="smsBtn" onClick={() => setSmsOpen(true)}>📩 הדבקת הודעות</button>
+        </div>
+        <div style={S.monthNav}>
+          <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, -1))} aria-label="חודש קודם">‹</button>
+          <div style={S.monthLabel}>{ymLabel(viewYM)}</div>
+          <button className="ghostBtn" onClick={() => setViewYM(addMonthsYM(viewYM, 1))} aria-label="חודש הבא">›</button>
+          {viewYM !== currentYM() && <button className="todayBtn" onClick={() => setViewYM(currentYM())}>היום</button>}
+        </div>
+      </header>
+
+      {!store.available && (
+        <div style={S.warnBanner}>שמירה מקומית לא זמינה בתצוגה הזו — הנתונים יישמרו רק כשפותחים את האפליקציה מהדפדפן בטלפון.</div>
+      )}
+
+      <nav style={S.tabs}>
+        {[["home", "בית"], ["tx", "תנועות"], ["manage", "ניהול"]].map(([k, l]) => (
+          <button key={k} className="tabBtn" onClick={() => setTab(k)} style={{ ...S.tabBtn, ...(tab === k ? S.tabActive : {}) }}>{l}</button>
+        ))}
+      </nav>
+
+      <main style={S.main}>
+        {tab === "home" && (
+          <HomeTab S={S} budget={data.budget} flexBudget={flexBudget} flexRemaining={flexRemaining}
+            fixedForBudget={fixedForBudget} variableSpent={variableSpent} monthIncome={monthIncome}
+            accounts={data.accounts} balances={balances} totalBalance={totalBalance}
+            spentByCat={spentByCat} spentByMerchant={spentByMerchant} merchById={merchById} />
+        )}
+        {tab === "tx" && (
+          <TxTab S={S} monthTx={monthTx} accounts={data.accounts} accById={accById} merchById={merchById}
+            filterAcc={txFilterAcc} setFilterAcc={setTxFilterAcc} onDelete={deleteTx} />
+        )}
+        {tab === "manage" && <ManageTab S={S} data={data} persist={persist} session={session} syncStatus={syncStatus} onLogout={logout} onLogin={() => setLocalOnly(false)} />}
+      </main>
+
+      <button className="fab" onClick={() => setAddOpen(true)} aria-label="הוספת תנועה">+</button>
+
+      {addOpen && (
+        <AddSheet S={S} accounts={data.accounts} merchants={data.merchants}
+          onClose={() => setAddOpen(false)}
+          onSave={(item) => { addTransactions([item]); setAddOpen(false); setViewYM(ymOf(item.date)); }} />
+      )}
+      {smsOpen && (
+        <SmsSheet S={S} accounts={data.accounts} merchants={data.merchants}
+          onClose={() => setSmsOpen(false)}
+          onConfirm={(items) => { addTransactions(items); setSmsOpen(false); setTab("tx"); }} />
+      )}
+    </div>
+  );
+}
+
+// ================= מסך התחברות =================
+function LoginScreen({ S, onLocalOnly }) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState("email"); // email | code
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const sendCode = async () => {
+    setBusy(true); setError("");
+    try {
+      const { error } = await supa.auth.signInWithOtp({ email: email.trim() });
+      if (error) throw error;
+      setStep("code");
+    } catch (e) {
+      setError("שליחת הקוד נכשלה — כדאי לבדוק את הכתובת ולנסות שוב.");
+    } finally { setBusy(false); }
+  };
+
+  const verify = async () => {
+    setBusy(true); setError("");
+    try {
+      const { error } = await supa.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
+      if (error) throw error;
+      // onAuthStateChange יטפל בהמשך
+    } catch (e) {
+      setError("הקוד לא התקבל — שווה לבדוק שהוא הועתק במלואו, או לשלוח קוד חדש.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div dir="rtl" style={{ ...S.app, justifyContent: "center", padding: "0 24px" }}>
+      <div style={{ textAlign: "center", marginBottom: 26 }}>
+        <div style={{ fontSize: 40 }}>📗</div>
+        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6 }}>המחברת</div>
+        <div style={{ ...S.hint, marginTop: 6 }}>התחברות שומרת את הנתונים בענן ומסנכרנת בין מכשירים.</div>
+      </div>
+
+      {step === "email" && (
+        <React.Fragment>
+          <label style={S.fieldLabel}>אימייל</label>
+          <input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" dir="ltr"
+            value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...S.textInput, textAlign: "left" }} />
+          <button className="primaryBtn" disabled={busy || !email.includes("@")}
+            style={{ ...S.primaryBtn, opacity: busy || !email.includes("@") ? 0.5 : 1 }} onClick={sendCode}>
+            {busy ? "שולחת…" : "שליחת קוד למייל"}
+          </button>
+        </React.Fragment>
+      )}
+
+      {step === "code" && (
+        <React.Fragment>
+          <div style={S.hint}>נשלח קוד בן 6 ספרות אל {email}. יכול לקחת דקה — שווה להציץ גם בספאם.</div>
+          <label style={S.fieldLabel}>הקוד מהמייל</label>
+          <input className="numInput" type="text" inputMode="numeric" maxLength={6} dir="ltr" placeholder="123456"
+            value={code} onChange={(e) => setCode(e.target.value)}
+            style={{ ...S.textInput, textAlign: "center", fontSize: 24, letterSpacing: 8, fontWeight: 700 }} />
+          <button className="primaryBtn" disabled={busy || code.trim().length < 6}
+            style={{ ...S.primaryBtn, opacity: busy || code.trim().length < 6 ? 0.5 : 1 }} onClick={verify}>
+            {busy ? "מאמתת…" : "אישור"}
+          </button>
+          <button className="linkBtn" onClick={() => { setStep("email"); setCode(""); }}>שליחת קוד חדש</button>
+        </React.Fragment>
+      )}
+
+      {error && <div style={{ color: "#C93B3B", fontSize: 13, marginTop: 10, textAlign: "center" }}>{error}</div>}
+      <button className="linkBtn" style={{ marginTop: 22 }} onClick={onLocalOnly}>המשך בלי חשבון (שמירה מקומית בלבד)</button>
+    </div>
+  );
+}
+
+// ================= מסך הבית =================
+function HomeTab({ S, budget, flexBudget, flexRemaining, fixedForBudget, variableSpent, monthIncome, accounts, balances, totalBalance, spentByCat, spentByMerchant, merchById }) {
+  const pct = flexBudget > 0 ? Math.min(100, (variableSpent / flexBudget) * 100) : 0;
+  const over = flexRemaining < 0;
+  return (
+    <div>
+      <section style={S.card}>
+        <div style={S.cardTitle}>תקציב גמיש החודש</div>
+        {budget > 0 ? (
+          <React.Fragment>
+            <div style={{ ...S.bigNumber, color: over ? "#C93B3B" : "#132A23" }}>
+              {fmtSigned(flexRemaining)}<span style={S.bigSub}> {over ? "חריגה" : "נשאר"}</span>
+            </div>
+            <div style={S.totalBarTrack}>
+              <div style={{ ...S.totalBarFill, width: `${pct}%`, background: over ? "#C93B3B" : pct > 85 ? "#D99A26" : "#1E7A5A" }} />
+            </div>
+            <div style={S.flexBreakdown}>
+              תקציב {fmt(budget)} − קבועות {fmt(fixedForBudget)} = גמיש {fmt(flexBudget)} · יצא {fmt(variableSpent)}
+              {monthIncome > 0 && <React.Fragment> · נכנס {fmt(monthIncome)}</React.Fragment>}
+            </div>
+          </React.Fragment>
+        ) : (
+          <div style={S.hint}>מגדירים תקציב חודשי בלשונית ״ניהול״ ומכאן הכל מחושב לבד.</div>
+        )}
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitleRow}>
+          <div style={S.cardTitle}>מאזן כולל</div>
+          <div style={{ fontWeight: 900, fontSize: 18, color: totalBalance < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(totalBalance)}</div>
+        </div>
+        {accounts.map((a) => (
+          <div key={a.id} style={S.accRow}>
+            <span>{a.name}</span>
+            <b style={{ color: (balances[a.id] || 0) < 0 ? "#C93B3B" : "#132A23" }}>{fmtSigned(balances[a.id] || 0)}</b>
+          </div>
+        ))}
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitle}>פילוח הוצאות החודש</div>
+        {spentByCat.length === 0 && <div style={S.hint}>אין עדיין הוצאות החודש.</div>}
+        {spentByCat.map(([catId, amt]) => {
+          const c = catById(catId);
+          const max = spentByCat[0][1];
+          return (
+            <div key={catId} style={{ marginBottom: 10 }}>
+              <div style={S.catTop}>
+                <div style={S.catName}><span style={{ marginLeft: 6 }}>{c.emoji}</span>{c.name}</div>
+                <b>{fmt(amt)}</b>
+              </div>
+              <div style={S.barTrack}><div style={{ ...S.barFill, width: `${(amt / max) * 100}%`, background: "#1E7A5A" }} /></div>
+            </div>
+          );
+        })}
+        {spentByMerchant.length > 0 && (
+          <React.Fragment>
+            <div style={{ ...S.cardTitle, marginTop: 14 }}>בתי עסק מובילים</div>
+            {spentByMerchant.map(([mid, amt]) => (
+              <div key={mid} style={S.accRow}>
+                <span>{(merchById(mid) || {}).name || "—"}</span>
+                <b>{fmt(amt)}</b>
+              </div>
+            ))}
+          </React.Fragment>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ================= תנועות =================
+function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterAcc, onDelete }) {
+  const list = monthTx.filter((t) => filterAcc === "all" || t.accountId === filterAcc || t.toAccountId === filterAcc);
+  return (
+    <div>
+      <select value={filterAcc} onChange={(e) => setFilterAcc(e.target.value)} style={S.select}>
+        <option value="all">כל החשבונות</option>
+        {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+      {list.length === 0 && <div style={S.empty}>אין תנועות בחודש הזה.</div>}
+      {list.map((t) => {
+        const c = catById(t.categoryId);
+        const m = t.merchantId ? merchById(t.merchantId) : null;
+        const isTransfer = t.type === "transfer";
+        const isIncome = t.type === "income";
+        const title = (m && m.name) || t.note || (isTransfer ? "העברה" : c.name);
+        const meta = [
+          isTransfer ? `${(accById(t.accountId) || {}).name} ← ${(accById(t.toAccountId) || {}).name}` : (accById(t.accountId) || {}).name,
+          heDate(t.date),
+          t.instTotal ? `תשלום ${t.instIdx}/${t.instTotal}` : null,
+          t.fixedId ? "קבועה" : null,
+        ].filter(Boolean).join(" · ");
+        return (
+          <div key={t.id} style={S.txRow}>
+            <div style={S.txEmoji}>{isTransfer ? "⇄" : isIncome ? "💰" : c.emoji}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={S.txTitle}>{title}</div>
+              <div style={S.txMeta}>{meta}</div>
+            </div>
+            <div style={{ ...S.txAmount, color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#132A23" }}>
+              {isIncome ? "+" : ""}{fmt(t.amount)}
+            </div>
+            <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 15 }} onClick={() => onDelete(t)} aria-label="מחיקה">✕</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ================= ניהול =================
+function ManageTab({ S, data, persist, session, syncStatus, onLogout, onLogin }) {
+  const [newFixed, setNewFixed] = useState({ name: "", amount: "", categoryId: "bills", accountId: (data.accounts[0] || {}).id, day: 1 });
+  const [importErr, setImportErr] = useState("");
+
+  const upAccount = (id, field, value) => {
+    persist({ ...data, accounts: data.accounts.map((a) => (a.id === id ? { ...a, [field]: field === "opening" ? parseFloat(value) || 0 : value } : a)) });
+  };
+  const addAccount = () => persist({ ...data, accounts: [...data.accounts, { id: uid(), name: "חשבון חדש", opening: 0, hint: "" }] });
+
+  const addFixed = () => {
+    const amt = parseFloat(newFixed.amount);
+    if (!newFixed.name.trim() || !amt) return;
+    persist({ ...data, fixed: [...data.fixed, { id: uid(), ...newFixed, name: newFixed.name.trim(), amount: amt, day: parseInt(newFixed.day) || 1, startYM: currentYM() }] });
+    setNewFixed({ ...newFixed, name: "", amount: "" });
+  };
+  const delFixed = (id) => persist({ ...data, fixed: data.fixed.filter((f) => f.id !== id) });
+  const upMerchant = (id, categoryId) => persist({ ...data, merchants: data.merchants.map((m) => (m.id === id ? { ...m, categoryId } : m)) });
+
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mahberet-backup-${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed.transactions || !parsed.accounts) throw new Error("bad");
+        persist({ ...EMPTY_DATA, ...parsed });
+        setImportErr("");
+      } catch (e) {
+        setImportErr("הקובץ לא זוהה כגיבוי תקין של המחברת.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const statusLabel = { idle: "", saving: "שומרת…", synced: "מסונכרן ☁️✓", offline: "לא מסונכרן — ייסתנכרן כשיהיה חיבור" }[syncStatus] || "";
+
+  return (
+    <div>
+      <section style={S.card}>
+        <div style={S.cardTitle}>סנכרון ענן</div>
+        {session ? (
+          <React.Fragment>
+            <div style={{ fontSize: 14.5 }}>מחוברת: <b dir="ltr">{session.user.email}</b></div>
+            {statusLabel && <div style={S.hint}>{statusLabel}</div>}
+            <button className="miniBtn" style={{ marginTop: 10 }} onClick={onLogout}>התנתקות</button>
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <div style={S.hint}>שמירה מקומית בלבד. התחברות תגבה את הנתונים בענן ותסנכרן בין מכשירים.</div>
+            <button className="miniBtn" style={{ marginTop: 10 }} onClick={onLogin}>התחברות</button>
+          </React.Fragment>
+        )}
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitle}>תקציב חודשי כולל</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={S.shekel}>₪</span>
+          <input className="numInput" type="number" inputMode="numeric" defaultValue={data.budget || ""}
+            onBlur={(e) => persist({ ...data, budget: parseFloat(e.target.value) || 0 })} style={S.budgetInput} placeholder="0" />
+        </div>
+        <div style={S.hint}>מהתקציב מנוכות ההוצאות הקבועות — והשאר הוא התקציב הגמיש.</div>
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitleRow}>
+          <div style={S.cardTitle}>חשבונות</div>
+          <button className="miniBtn" onClick={addAccount}>+ חשבון</button>
+        </div>
+        {data.accounts.map((a) => (
+          <div key={a.id} style={S.accEditRow}>
+            <input type="text" defaultValue={a.name} onBlur={(e) => upAccount(a.id, "name", e.target.value)} style={{ ...S.textInput, flex: 1.3 }} />
+            <input className="numInput" type="number" defaultValue={a.opening || ""} placeholder="יתרת פתיחה"
+              onBlur={(e) => upAccount(a.id, "opening", e.target.value)} style={{ ...S.textInput, flex: 1 }} />
+            <input type="text" defaultValue={a.hint} placeholder="זיהוי (4 ספרות)"
+              onBlur={(e) => upAccount(a.id, "hint", e.target.value)} style={{ ...S.textInput, flex: 1 }} />
+          </div>
+        ))}
+        <div style={S.hint}>״זיהוי״ = 4 הספרות האחרונות של הכרטיס, כדי שהדבקת הודעות תשייך עסקה לכרטיס הנכון אוטומטית.</div>
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitle}>הוצאות קבועות</div>
+        {data.fixed.map((f) => (
+          <div key={f.id} style={S.accRow}>
+            <span>{catById(f.categoryId).emoji} {f.name} · {f.day} בחודש</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <b>{fmt(f.amount)}</b>
+              <button className="ghostBtn" style={{ color: "#B0433B", fontSize: 14 }} onClick={() => delFixed(f.id)}>✕</button>
+            </span>
+          </div>
+        ))}
+        <div style={S.fixedForm}>
+          <input type="text" placeholder="שם (שכירות…)" value={newFixed.name} onChange={(e) => setNewFixed({ ...newFixed, name: e.target.value })} style={{ ...S.textInput, flex: 1.4 }} />
+          <input className="numInput" type="number" placeholder="₪" value={newFixed.amount} onChange={(e) => setNewFixed({ ...newFixed, amount: e.target.value })} style={{ ...S.textInput, flex: 0.8 }} />
+        </div>
+        <div style={S.fixedForm}>
+          <select value={newFixed.categoryId} onChange={(e) => setNewFixed({ ...newFixed, categoryId: e.target.value })} style={{ ...S.select, flex: 1, marginBottom: 0 }}>
+            {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+          </select>
+          <select value={newFixed.accountId} onChange={(e) => setNewFixed({ ...newFixed, accountId: e.target.value })} style={{ ...S.select, flex: 1, marginBottom: 0 }}>
+            {data.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <input className="numInput" type="number" min="1" max="28" value={newFixed.day} onChange={(e) => setNewFixed({ ...newFixed, day: e.target.value })} style={{ ...S.textInput, width: 58, flex: "none" }} title="יום בחודש" />
+          <button className="miniBtn" onClick={addFixed}>הוספה</button>
+        </div>
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitle}>בתי עסק</div>
+        {data.merchants.length === 0 && <div style={S.hint}>בתי עסק נוצרים אוטומטית מתנועות ומהדבקת הודעות.</div>}
+        {data.merchants.map((m) => (
+          <div key={m.id} style={S.accRow}>
+            <span>{m.name}</span>
+            <select value={m.categoryId} onChange={(e) => upMerchant(m.id, e.target.value)} style={{ ...S.select, width: 150, marginBottom: 0, padding: "6px 8px" }}>
+              {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+            </select>
+          </div>
+        ))}
+      </section>
+
+      <section style={S.card}>
+        <div style={S.cardTitle}>גיבוי ושחזור</div>
+        <div style={S.hint}>הנתונים שמורים רק בטלפון הזה. מומלץ לייצא גיבוי מדי פעם — במיוחד לפני ניקוי היסטוריית דפדפן.</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button className="miniBtn" onClick={exportData}>⬇ ייצוא גיבוי</button>
+          <label className="miniBtn" style={{ display: "inline-block" }}>
+            ⬆ שחזור מגיבוי
+            <input type="file" accept=".json,application/json" style={{ display: "none" }}
+              onChange={(e) => e.target.files[0] && importData(e.target.files[0])} />
+          </label>
+        </div>
+        {importErr && <div style={{ color: "#C93B3B", fontSize: 13, marginTop: 8 }}>{importErr}</div>}
+      </section>
+    </div>
+  );
+}
+
+// ================= גיליון הוספה =================
+function AddSheet({ S, accounts, merchants, onClose, onSave }) {
+  const [type, setType] = useState("expense");
+  const [amount, setAmount] = useState("");
+  const [accountId, setAccountId] = useState((accounts[0] || {}).id);
+  const [toAccountId, setToAccountId] = useState((accounts[1] || accounts[0] || {}).id);
+  const [merchantName, setMerchantName] = useState("");
+  const [categoryId, setCategoryId] = useState("food");
+  const [date, setDate] = useState(todayStr());
+  const [note, setNote] = useState("");
+  const [installments, setInstallments] = useState(1);
+
+  useEffect(() => {
+    const m = merchants.find((x) => x.name === merchantName.trim());
+    if (m) setCategoryId(m.categoryId);
+  }, [merchantName]);
+
+  const valid = parseFloat(amount) > 0 && (type !== "transfer" || accountId !== toAccountId);
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={S.sheetHandle} />
+        <div style={S.segmented}>
+          {[["expense", "הוצאה"], ["income", "הכנסה"], ["transfer", "העברה"]].map(([k, l]) => (
+            <button key={k} className="segBtn" onClick={() => setType(k)} style={{ ...S.segBtn, ...(type === k ? S.segActive : {}) }}>{l}</button>
+          ))}
+        </div>
+
+        <label style={S.fieldLabel}>סכום</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ ...S.shekel, fontSize: 22 }}>₪</span>
+          <input className="numInput" type="number" inputMode="decimal" autoFocus placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} style={S.amountInput} />
+        </div>
+
+        <label style={S.fieldLabel}>{type === "transfer" ? "מחשבון" : "חשבון"}</label>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={S.select}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+
+        {type === "transfer" && (
+          <React.Fragment>
+            <label style={S.fieldLabel}>לחשבון</label>
+            <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} style={S.select}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </React.Fragment>
+        )}
+
+        {type !== "transfer" && (
+          <React.Fragment>
+            <label style={S.fieldLabel}>{type === "income" ? "מקור (לא חובה)" : "בית עסק"}</label>
+            <input type="text" list="merchants-dl" placeholder={type === "income" ? "משכורת…" : "שופרסל…"} value={merchantName} onChange={(e) => setMerchantName(e.target.value)} style={S.textInput} />
+            <datalist id="merchants-dl">
+              {merchants.map((m) => <option key={m.id} value={m.name} />)}
+            </datalist>
+          </React.Fragment>
+        )}
+
+        {type === "expense" && (
+          <React.Fragment>
+            <label style={S.fieldLabel}>קטגוריה</label>
+            <div style={S.catGrid}>
+              {CATEGORIES.map((c) => (
+                <button key={c.id} className="catChip" onClick={() => setCategoryId(c.id)} style={{ ...S.catChip, ...(categoryId === c.id ? S.catChipActive : {}) }}>
+                  <span>{c.emoji}</span> {c.name}
+                </button>
+              ))}
+            </div>
+            <label style={S.fieldLabel}>תשלומים</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input className="numInput" type="number" min="1" max="36" value={installments} onChange={(e) => setInstallments(e.target.value)} style={{ ...S.textInput, width: 80 }} />
+              {parseInt(installments) > 1 && parseFloat(amount) > 0 && (
+                <span style={S.hint}>≈ {fmt(parseFloat(amount) / parseInt(installments))} לחודש, מתפרס קדימה</span>
+              )}
+            </div>
+          </React.Fragment>
+        )}
+
+        <label style={S.fieldLabel}>תאריך</label>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={S.textInput} />
+
+        <label style={S.fieldLabel}>הערה (לא חובה)</label>
+        <input type="text" value={note} onChange={(e) => setNote(e.target.value)} style={S.textInput} />
+
+        <button className="primaryBtn" disabled={!valid} style={{ ...S.primaryBtn, opacity: valid ? 1 : 0.4 }}
+          onClick={() => onSave({ type, amount: parseFloat(amount), accountId, toAccountId, merchantName, categoryId: type === "income" ? "other" : categoryId, date, note: note.trim(), installments })}>
+          שמירה
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ================= הדבקת SMS =================
+function SmsSheet({ S, accounts, merchants, onClose, onConfirm }) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [rows, setRows] = useState(null);
+
+  const matchAccount = (cardHint) => {
+    if (cardHint) {
+      const hit = accounts.find((a) => a.hint && (String(cardHint).includes(a.hint) || a.hint.includes(String(cardHint))));
+      if (hit) return hit.id;
+    }
+    const cc = accounts.find((a) => a.name.includes("אשראי"));
+    return cc ? cc.id : (accounts[0] || {}).id;
+  };
+
+  const guessCategory = (merchantName) => {
+    const known = merchants.find((m) => m.name === merchantName);
+    return known ? known.categoryId : "other";
+  };
+
+  const parse = () => {
+    const found = parseSmsText(text);
+    if (found.length === 0) {
+      setError("לא זוהו עסקאות בטקסט. הפורמט המוכר הוא הודעות ישראכרט — אם ההודעה מחברה אחרת, שלחי לי דוגמה ואוסיף תמיכה.");
+      return;
+    }
+    setError("");
+    setRows(found.map((p) => ({
+      amount: p.amount, merchantName: p.merchant,
+      categoryId: guessCategory(p.merchant),
+      date: p.date, accountId: matchAccount(p.cardHint),
+    })));
+  };
+
+  const upRow = (i, field, value) => setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+  const delRow = (i) => setRows(rows.filter((_, idx) => idx !== i));
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
+        <div style={S.sheetHandle} />
+        <div style={S.sheetTitle}>הדבקת הודעות אשראי</div>
+
+        {!rows && (
+          <React.Fragment>
+            <div style={S.hint}>מעתיקים הודעה אחת או כמה ביחד מאפליקציית ההודעות ומדביקים כאן. הפענוח מקומי לגמרי — שום דבר לא נשלח לאינטרנט.</div>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={'שלום, בכרטיסך המסתיים ב- 8883, אושרה עסקה ב-03/07 בסך 34.00 ש"ח בSCHNITT…'} style={S.textarea} rows={6} />
+            {error && <div style={{ color: "#C93B3B", fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>{error}</div>}
+            <button className="primaryBtn" disabled={!text.trim()} style={{ ...S.primaryBtn, opacity: text.trim() ? 1 : 0.5 }} onClick={parse}>פענוח</button>
+          </React.Fragment>
+        )}
+
+        {rows && (
+          <React.Fragment>
+            <div style={S.hint}>נמצאו {rows.length} עסקאות — אפשר לתקן לפני האישור:</div>
+            {rows.map((r, i) => (
+              <div key={i} style={S.reviewRow}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="numInput" type="number" value={r.amount} onChange={(e) => upRow(i, "amount", parseFloat(e.target.value) || 0)} style={{ ...S.textInput, width: 88 }} />
+                  <input type="text" value={r.merchantName} onChange={(e) => upRow(i, "merchantName", e.target.value)} style={{ ...S.textInput, flex: 1 }} />
+                  <button className="ghostBtn" style={{ color: "#B0433B" }} onClick={() => delRow(i)}>✕</button>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                  <select value={r.categoryId} onChange={(e) => upRow(i, "categoryId", e.target.value)} style={{ ...S.select, flex: 1, marginBottom: 0, minWidth: 120 }}>
+                    {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                  </select>
+                  <select value={r.accountId} onChange={(e) => upRow(i, "accountId", e.target.value)} style={{ ...S.select, flex: 1, marginBottom: 0, minWidth: 110 }}>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                  <input type="date" value={r.date} onChange={(e) => upRow(i, "date", e.target.value)} style={{ ...S.textInput, width: 140 }} />
+                </div>
+              </div>
+            ))}
+            <button className="primaryBtn" style={S.primaryBtn}
+              onClick={() => onConfirm(rows.filter((r) => r.amount > 0).map((r) => ({ type: "expense", amount: r.amount, accountId: r.accountId, merchantName: r.merchantName, categoryId: r.categoryId, date: r.date, note: "", installments: 1 })))}>
+              הוספת {rows.length} עסקאות
+            </button>
+            <button className="linkBtn" onClick={() => { setRows(null); setText(""); }}>חזרה להדבקה</button>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ================= עיצוב =================
+const styles = {
+  app: {
+    fontFamily: "'Heebo', system-ui, sans-serif", background: "#F3F5F2", minHeight: "100vh",
+    maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column",
+    color: "#132A23", paddingBottom: 110, paddingTop: "env(safe-area-inset-top)",
+  },
+  header: { padding: "18px 20px 4px" },
+  headerRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  appTitle: { fontSize: 14, fontWeight: 700, letterSpacing: 2, color: "#7A8A82" },
+  monthNav: { display: "flex", alignItems: "center", gap: 4, marginTop: 4 },
+  monthLabel: { fontSize: 23, fontWeight: 900 },
+  warnBanner: { margin: "8px 16px 0", background: "#FBEFD8", color: "#8A6414", borderRadius: 12, padding: "10px 14px", fontSize: 13, lineHeight: 1.5 },
+  tabs: { display: "flex", gap: 6, padding: "12px 16px 4px" },
+  tabBtn: { flex: 1, padding: "9px 0", borderRadius: 12, border: "none", background: "transparent", fontFamily: "inherit", fontSize: 15, fontWeight: 500, color: "#5B6B66", cursor: "pointer" },
+  tabActive: { background: "#132A23", color: "#EDF5EF", fontWeight: 700 },
+  main: { padding: "10px 16px 0", flex: 1 },
+  card: { background: "#FFFFFF", borderRadius: 18, padding: "16px 16px 14px", marginBottom: 12, boxShadow: "0 2px 8px rgba(19,42,35,0.06)" },
+  cardTitle: { fontSize: 13.5, fontWeight: 700, color: "#7A8A82", marginBottom: 8 },
+  cardTitleRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  bigNumber: { fontSize: 34, fontWeight: 900, lineHeight: 1.15 },
+  bigSub: { fontSize: 15, fontWeight: 500, color: "#7A8A82" },
+  totalBarTrack: { marginTop: 12, height: 10, borderRadius: 6, background: "#E7EDE8", overflow: "hidden" },
+  totalBarFill: { height: "100%", borderRadius: 6, transition: "width .3s" },
+  flexBreakdown: { marginTop: 10, fontSize: 12.5, color: "#7A8A82", lineHeight: 1.6 },
+  hint: { fontSize: 13, color: "#7A8A82", lineHeight: 1.6, marginTop: 4 },
+  accRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", fontSize: 15, borderBottom: "1px solid #F0F4F0" },
+  accEditRow: { display: "flex", gap: 6, marginBottom: 8 },
+  catTop: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14.5 },
+  catName: { fontWeight: 500 },
+  barTrack: { marginTop: 6, height: 6, borderRadius: 4, background: "#E7EDE8", overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 4 },
+  empty: { textAlign: "center", color: "#7A8A82", padding: "50px 20px", lineHeight: 1.8 },
+  txRow: { display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF", borderRadius: 14, padding: "11px 12px", marginBottom: 8 },
+  txEmoji: { fontSize: 20 },
+  txTitle: { fontWeight: 500, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  txMeta: { fontSize: 12.5, color: "#8A978F" },
+  txAmount: { fontWeight: 700, fontSize: 15, whiteSpace: "nowrap" },
+  select: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 15, background: "#F7F9F6", marginBottom: 12, color: "#132A23" },
+  budgetInput: { width: 140, padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 18, fontWeight: 700, textAlign: "center", background: "#F7F9F6" },
+  shekel: { color: "#7A8A82", fontWeight: 500 },
+  fixedForm: { display: "flex", gap: 6, marginTop: 8, alignItems: "center" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(19,42,35,0.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 },
+  sheet: { background: "#FFFFFF", width: "100%", maxWidth: 480, borderRadius: "22px 22px 0 0", padding: "10px 20px 28px", maxHeight: "90vh", overflowY: "auto", paddingBottom: "calc(28px + env(safe-area-inset-bottom))" },
+  sheetHandle: { width: 42, height: 5, borderRadius: 3, background: "#D8E0DA", margin: "6px auto 14px" },
+  sheetTitle: { fontSize: 20, fontWeight: 900, marginBottom: 6 },
+  segmented: { display: "flex", gap: 6, background: "#F0F4F0", borderRadius: 14, padding: 4, marginBottom: 4 },
+  segBtn: { flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: "transparent", fontFamily: "inherit", fontSize: 14.5, fontWeight: 500, color: "#5B6B66", cursor: "pointer" },
+  segActive: { background: "#132A23", color: "#EDF5EF", fontWeight: 700 },
+  fieldLabel: { display: "block", fontSize: 13, fontWeight: 500, color: "#5B6B66", margin: "14px 0 6px" },
+  amountInput: { flex: 1, fontSize: 28, fontWeight: 700, padding: "8px 12px", borderRadius: 14, border: "1.5px solid #DDE5DE", fontFamily: "inherit", background: "#F7F9F6" },
+  catGrid: { display: "flex", flexWrap: "wrap", gap: 7 },
+  catChip: { border: "1.5px solid #DDE5DE", background: "#F7F9F6", borderRadius: 999, padding: "7px 12px", fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", color: "#40544D" },
+  catChipActive: { background: "#132A23", color: "#EDF5EF", borderColor: "#132A23", fontWeight: 700 },
+  textInput: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 15, background: "#F7F9F6" },
+  textarea: { width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 14.5, background: "#F7F9F6", resize: "vertical" },
+  reviewRow: { background: "#F7F9F6", borderRadius: 14, padding: "10px 10px", marginBottom: 10 },
+  primaryBtn: { width: "100%", marginTop: 20, padding: "14px 0", borderRadius: 14, background: "#132A23", color: "#EDF5EF", border: "none", fontFamily: "inherit", fontSize: 17, fontWeight: 700, cursor: "pointer" },
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
