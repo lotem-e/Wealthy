@@ -109,6 +109,26 @@ function migrate(data) {
   return { ...d, schemaVersion: SCHEMA_VERSION };
 }
 
+// מיזוג שני מצבי נתונים בלי לאבד תנועות: איחוד רשומות לפי מזהה (id).
+// primary גובר על secondary בהתנגשות באותו id ובהגדרות סקלריות (תקציב וכו').
+function mergeById(primary, secondary) {
+  const map = new Map();
+  for (const x of secondary || []) map.set(x.id, x);
+  for (const x of primary || []) map.set(x.id, x); // primary נכתב אחרון => גובר
+  return Array.from(map.values());
+}
+function mergeData(primary, secondary) {
+  return {
+    ...secondary,
+    ...primary,
+    transactions: mergeById(primary.transactions, secondary.transactions),
+    merchants: mergeById(primary.merchants, secondary.merchants),
+    accounts: mergeById(primary.accounts, secondary.accounts),
+    fixed: mergeById(primary.fixed, secondary.fixed),
+    fixedSkips: Array.from(new Set([...(secondary.fixedSkips || []), ...(primary.fixedSkips || [])])),
+  };
+}
+
 // ================= אחסון מקומי =================
 const store = {
   available: true,
@@ -139,7 +159,14 @@ function cloudSaveDebounced(userId, payload, onStatus) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      const { error } = await supa.from("app_data").upsert({ user_id: userId, data: payload });
+      // לפני כתיבה: מושכים את מצב הענן ומאחדים, כדי לא לדרוס תנועות שמכשיר אחר
+      // הוסיף בינתיים. השינויים המקומיים (payload) גוברים בעת התנגשות.
+      let toSave = payload;
+      try {
+        const current = await cloudLoad(userId);
+        if (current && current.transactions) toSave = mergeData(payload, migrate({ ...EMPTY_DATA, ...current }));
+      } catch (e) { /* משיכה נכשלה => נשמור את המקומי כפי שהוא */ }
+      const { error } = await supa.from("app_data").upsert({ user_id: userId, data: toSave });
       if (error) throw error;
       onStatus("synced");
     } catch (e) {
@@ -199,10 +226,17 @@ function App() {
       try {
         const cloud = await cloudLoad(session.user.id);
         if (cloud && cloud.transactions) {
-          const merged = migrate({ ...EMPTY_DATA, ...cloud });
+          const cloudData = migrate({ ...EMPTY_DATA, ...cloud });
+          // הענן הוא המקור האמין, אבל שומרים תנועות/בתי עסק מקומיים שטרם סונכרנו
+          const merged = mergeData(cloudData, dataRef.current);
           setData(merged);
           store.save(merged);
-          setSyncStatus("synced");
+          // אם המיזוג הוסיף נתונים מקומיים שלא היו בענן, דוחפים אותם בחזרה
+          if (merged.transactions.length > cloudData.transactions.length) {
+            cloudSaveDebounced(session.user.id, merged, setSyncStatus);
+          } else {
+            setSyncStatus("synced");
+          }
         } else {
           cloudSaveDebounced(session.user.id, dataRef.current, setSyncStatus);
         }

@@ -8,8 +8,8 @@ Ranked by (daily-use impact) x (effort). Effort: **S** small, **M** medium, **L*
 - [ ] 2. (M) Fixed expenses only generate for the month you open; skipped months stay empty forever → balances too high.
 - [x] 3. (S) Amounts render rounded to whole shekels while data keeps agorot → rows don't sum to the total.
 - [x] 4. (S) Month-end installment purchases produce impossible dates (2026-02-31) → editing breaks the date.
-- [ ] 5. (M) Two-device sync is blind last-writer-wins → concurrent edits silently clobbered.
-- [ ] 6. (M) Logging in from local-only mode discards unsynced local transactions.
+- [x] 5. (M) Two-device sync is blind last-writer-wins → concurrent edits silently clobbered.
+- [x] 6. (M) Logging in from local-only mode discards unsynced local transactions.
 - [x] 7. (S) Backup restore wipes everything instantly with no confirmation.
 
 ## 🟡 Medium
@@ -39,4 +39,5 @@ Ranked by (daily-use impact) x (effort). Effort: **S** small, **M** medium, **L*
 
 ## Progress
 - **Batch 1** ✅ merged: #1, #3, #4, #7, #8, #10 (small, high-impact correctness + safety).
-- **Next up** - Batch 2 (sync safety): #5, #6. Then the recurring-expense holes: #2, #11, #12, #13.
+- **Batch 2** ✅ merged: #5, #6 (sync safety - merge-by-id so no device clobbers another).
+- **Next up** - the recurring-expense holes: #2, #11, #12, #13.
