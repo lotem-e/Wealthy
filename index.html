@@ -366,72 +366,55 @@ function App() {
 
 // ================= מסך התחברות =================
 function LoginScreen({ S, onLocalOnly }) {
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState("email"); // email | code
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const sendCode = async () => {
+  const loginWithGoogle = async () => {
     setBusy(true); setError("");
     try {
-      const { error } = await supa.auth.signInWithOtp({ email: email.trim() });
+      const { error } = await supa.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.href },
+      });
       if (error) throw error;
-      setStep("code");
     } catch (e) {
-      setError("שליחת הקוד נכשלה — כדאי לבדוק את הכתובת ולנסות שוב.");
-    } finally { setBusy(false); }
-  };
-
-  const verify = async () => {
-    setBusy(true); setError("");
-    try {
-      const { error } = await supa.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
-      if (error) throw error;
-      // onAuthStateChange יטפל בהמשך
-    } catch (e) {
-      setError("הקוד לא התקבל — שווה לבדוק שהוא הועתק במלואו, או לשלוח קוד חדש.");
+      setError("ההתחברות נכשלה — כדאי לנסות שוב.");
       setBusy(false);
     }
   };
 
   return (
     <div dir="rtl" style={{ ...S.app, justifyContent: "center", padding: "0 24px" }}>
-      <div style={{ textAlign: "center", marginBottom: 26 }}>
-        <div style={{ fontSize: 40 }}>📗</div>
-        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6 }}>המחברת</div>
-        <div style={{ ...S.hint, marginTop: 6 }}>התחברות שומרת את הנתונים בענן ומסנכרנת בין מכשירים.</div>
+      <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ fontSize: 48 }}>📗</div>
+        <div style={{ fontSize: 28, fontWeight: 900, marginTop: 8 }}>המחברת</div>
+        <div style={{ ...S.hint, marginTop: 8, fontSize: 14 }}>מעקב הוצאות, תקציב, וסנכרון ענן.</div>
       </div>
 
-      {step === "email" && (
-        <React.Fragment>
-          <label style={S.fieldLabel}>אימייל</label>
-          <input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" dir="ltr"
-            value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...S.textInput, textAlign: "left" }} />
-          <button className="primaryBtn" disabled={busy || !email.includes("@")}
-            style={{ ...S.primaryBtn, opacity: busy || !email.includes("@") ? 0.5 : 1 }} onClick={sendCode}>
-            {busy ? "שולחת…" : "שליחת קוד למייל"}
-          </button>
-        </React.Fragment>
-      )}
+      <button
+        disabled={busy}
+        onClick={loginWithGoogle}
+        style={{
+          width: "100%", padding: "14px 0", borderRadius: 14,
+          background: "#fff", border: "1.5px solid #DDE5DE",
+          fontFamily: "inherit", fontSize: 16, fontWeight: 600,
+          color: "#132A23", cursor: "pointer", display: "flex",
+          alignItems: "center", justifyContent: "center", gap: 10,
+          opacity: busy ? 0.6 : 1,
+          boxShadow: "0 2px 8px rgba(19,42,35,0.08)",
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 48 48">
+          <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.3-.2-2.7-.5-4z"/>
+          <path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.1 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.6 0-14.2 4.3-17.7 11.7z"/>
+          <path fill="#FBBC05" d="M24 45c5.5 0 10.5-1.9 14.3-5l-6.6-5.4C29.8 36.1 27 37 24 37c-5.7 0-10.6-3.8-12.3-9l-7 5.4C8.3 40.8 15.5 45 24 45z"/>
+          <path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.8-2.6 5.1-5.1 6.6l6.6 5.4C41.5 37.3 45 31.2 45 24c0-1.3-.2-2.7-.5-4z"/>
+        </svg>
+        {busy ? "מתחברת…" : "המשך עם Google"}
+      </button>
 
-      {step === "code" && (
-        <React.Fragment>
-          <div style={S.hint}>נשלח קוד בן 6 ספרות אל {email}. יכול לקחת דקה — שווה להציץ גם בספאם.</div>
-          <label style={S.fieldLabel}>הקוד מהמייל</label>
-          <input className="numInput" type="text" inputMode="numeric" maxLength={6} dir="ltr" placeholder="123456"
-            value={code} onChange={(e) => setCode(e.target.value)}
-            style={{ ...S.textInput, textAlign: "center", fontSize: 24, letterSpacing: 8, fontWeight: 700 }} />
-          <button className="primaryBtn" disabled={busy || code.trim().length < 6}
-            style={{ ...S.primaryBtn, opacity: busy || code.trim().length < 6 ? 0.5 : 1 }} onClick={verify}>
-            {busy ? "מאמתת…" : "אישור"}
-          </button>
-          <button className="linkBtn" onClick={() => { setStep("email"); setCode(""); }}>שליחת קוד חדש</button>
-        </React.Fragment>
-      )}
-
-      {error && <div style={{ color: "#C93B3B", fontSize: 13, marginTop: 10, textAlign: "center" }}>{error}</div>}
-      <button className="linkBtn" style={{ marginTop: 22 }} onClick={onLocalOnly}>המשך בלי חשבון (שמירה מקומית בלבד)</button>
+      {error && <div style={{ color: "#C93B3B", fontSize: 13, marginTop: 12, textAlign: "center" }}>{error}</div>}
+      <button className="linkBtn" style={{ marginTop: 20 }} onClick={onLocalOnly}>המשך בלי חשבון (שמירה מקומית בלבד)</button>
     </div>
   );
 }
