@@ -17,6 +17,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: #F3F5F2; }
   input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid #1E7A5A; outline-offset: 2px; }
+  /* מונע זום אוטומטי של iOS על פוקוס בשדה - הוא מזמזם כשגודל הפונט קטן מ-16px */
+  input, select, textarea { font-size: 16px; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
   .numInput { -moz-appearance: textfield; }
   .ghostBtn { background: none; border: none; cursor: pointer; font-size: 22px; color: #40544D; padding: 4px 10px; border-radius: 8px; }
@@ -1129,7 +1131,7 @@ const styles = {
   txTitle: { fontWeight: 500, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   txMeta: { fontSize: 12.5, color: "#8A978F" },
   txAmount: { fontWeight: 700, fontSize: 15, whiteSpace: "nowrap" },
-  select: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 15, background: "#F7F9F6", marginBottom: 12, color: "#132A23" },
+  select: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 16, background: "#F7F9F6", marginBottom: 12, color: "#132A23" },
   budgetInput: { width: 140, padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 18, fontWeight: 700, textAlign: "center", background: "#F7F9F6" },
   shekel: { color: "#7A8A82", fontWeight: 500 },
   fixedForm: { display: "flex", gap: 6, marginTop: 8, alignItems: "center" },
@@ -1145,8 +1147,8 @@ const styles = {
   catGrid: { display: "flex", flexWrap: "wrap", gap: 7 },
   catChip: { border: "1.5px solid #DDE5DE", background: "#F7F9F6", borderRadius: 999, padding: "7px 12px", fontFamily: "inherit", fontSize: 13.5, cursor: "pointer", color: "#40544D" },
   catChipActive: { background: "#132A23", color: "#EDF5EF", borderColor: "#132A23", fontWeight: 700 },
-  textInput: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 15, background: "#F7F9F6" },
-  textarea: { width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 14.5, background: "#F7F9F6", resize: "vertical" },
+  textInput: { width: "100%", padding: "10px 12px", borderRadius: 12, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 16, background: "#F7F9F6" },
+  textarea: { width: "100%", marginTop: 10, padding: "12px", borderRadius: 14, border: "1.5px solid #DDE5DE", fontFamily: "inherit", fontSize: 16, background: "#F7F9F6", resize: "vertical" },
   reviewRow: { background: "#F7F9F6", borderRadius: 14, padding: "10px 10px", marginBottom: 10 },
   detailRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", fontSize: 15, borderBottom: "1px solid #F0F4F0" },
   detailKey: { color: "#7A8A82", fontSize: 14 },
