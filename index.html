@@ -38,14 +38,29 @@
     border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 10px 30px rgba(19,42,35,0.16);
   }
-  .navBtn { background: none; border: none; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; padding: 7px 10px; border-radius: 14px; }
+  /* אייקונים בלבד, בלי טקסט - כמו הבר של Mail: הטאב הפעיל מקבל עיגול רך מאחוריו */
+  .navBtn { background: none; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; padding: 10px 13px; border-radius: 999px; }
   .navBtn:active { transform: scale(0.94); }
+  /* כפתור הפלוס: עיגול זכוכית עדין ונפרד, לא כפתור כהה בולט - הרקע מגיע מ-glassBar */
   .fabRound {
-    width: 54px; height: 54px; border-radius: 50%; flex: none;
-    background: #132A23; color: #EDF5EF; font-size: 30px; line-height: 1;
-    border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(19,42,35,0.35);
+    width: 50px; height: 50px; border-radius: 50%; flex: none;
+    color: #132A23; font-size: 26px; font-weight: 400; line-height: 1;
+    cursor: pointer;
   }
   .fabRound:active { transform: scale(0.94); }
+  /* כפתור עגול קטן בראש sheet: סגירה ותפריט פעולות, כמו ב-sheets של אפל */
+  .circleBtn {
+    width: 32px; height: 32px; border-radius: 50%; border: none; flex: none;
+    background: #F0F4F0; color: #5B6B66; font-family: inherit; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    position: relative;
+  }
+  /* הרחבת אזור ההקשה ל-44px בלי לשנות את המראה: שכבה שקופה סביב הכפתור
+     שקולטת הקשות - כך אפל עושה בכפתורים העגולים הקטנים שלה */
+  .circleBtn::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
+  .circleBtn:active { transform: scale(0.92); }
+  .menuItem { display: block; width: 100%; text-align: right; background: none; border: none; font-family: inherit; font-size: 15px; font-weight: 500; color: #132A23; padding: 12px 16px; cursor: pointer; }
+  .menuItem:active { background: #F7F9F6; }
   /* מסתיר את פס הגלילה בקרוסלת הווידג'טים בלי לבטל את הגלילה עצמה */
   .noScrollbar { scrollbar-width: none; }
   .noScrollbar::-webkit-scrollbar { display: none; }
@@ -235,6 +250,18 @@ function TabIcon({ name, active }) {
       {name === "tx" && <g {...p}><path d="M7.5 4.5v13" /><path d="M4.5 14.5l3 3 3-3" /><path d="M16.5 19.5v-13" /><path d="M13.5 9.5l3-3 3 3" /></g>}
       {name === "budgets" && <g {...p}><path d="M21.2 15.9A10 10 0 1 1 8 2.8" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></g>}
       {name === "settings" && <g {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></g>}
+    </svg>
+  );
+}
+
+// אייקוני הפעולה שנחשפים בהחלקה על שורת תנועה: עיפרון ופח בקו לבן,
+// מצוירים כ-SVG כדי שיהיו חדים על עיגול צבע (אימוג'י לא ניתן לצביעה)
+function ActionIcon({ name }) {
+  const p = { fill: "none", stroke: "#FFFFFF", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      {name === "edit" && <path {...p} d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />}
+      {name === "trash" && <g {...p}><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></g>}
     </svg>
   );
 }
@@ -459,19 +486,19 @@ function App() {
         {tab === "settings" && <SettingsTab S={S} data={data} persist={persist} session={session} syncStatus={syncStatus} onLogout={logout} onLogin={() => setLocalOnly(false)} />}
       </main>
 
-      {/* ניווט תחתון: קפסולת זכוכית עם 4 טאבים, ולידה כפתור פלוס עגול נפרד */}
+      {/* ניווט תחתון: קפסולת זכוכית עם אייקונים בלבד, והפלוס בעיגול זכוכית נפרד.
+          ב-RTL הילד הראשון של flex יושב בצד ימין - לכן הפלוס ראשון ב-DOM */}
       <div style={S.bottomWrap}>
+        <button className="glassBar fabRound" onClick={() => setAddOpen(true)} aria-label="הוספת תנועה">+</button>
         <nav className="glassBar" style={S.bottomNav} aria-label="ניווט ראשי">
           {TABS.map((t) => (
             <button key={t.key} className="navBtn" onClick={() => setTab(t.key)}
-              style={{ color: tab === t.key ? "#132A23" : "#7A8A82", fontWeight: tab === t.key ? 700 : 500 }}
-              aria-current={tab === t.key ? "page" : undefined}>
+              style={{ color: tab === t.key ? "#132A23" : "#8A978F", background: tab === t.key ? "rgba(19,42,35,0.07)" : "transparent" }}
+              aria-label={t.label} title={t.label} aria-current={tab === t.key ? "page" : undefined}>
               <TabIcon name={t.key} active={tab === t.key} />
-              {t.label}
             </button>
           ))}
         </nav>
-        <button className="fabRound" onClick={() => setAddOpen(true)} aria-label="הוספת תנועה">+</button>
       </div>
 
       {addOpen && (
@@ -617,10 +644,16 @@ function SwipeRow({ id, openId, setOpenId, onEdit, onDelete, onOpen, children })
 
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 8 }}>
+      {/* כפתורים עגולים צפים על רקע הדף, בסגנון iOS - במקום מלבני צבע ברוחב מלא */}
       <button aria-label="עריכה" onClick={() => act(onEdit)}
-        style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 84, border: "none", background: "#1E7A5A", color: "#EDF5EF", fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, cursor: "pointer" }}>✏️<br />עריכה</button>
+        style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 84, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+        {/* צל קצר ומרוכז: השורה חותכת כל מה שגולש ממנה, וצל ארוך היה נחתך בקו ישר */}
+        <span style={{ width: 46, height: 46, borderRadius: "50%", background: "#98A29A", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(19,42,35,0.24)" }}><ActionIcon name="edit" /></span>
+      </button>
       <button aria-label="מחיקה" onClick={() => act(onDelete)}
-        style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 84, border: "none", background: "#C93B3B", color: "#fff", fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, cursor: "pointer" }}>🗑<br />מחיקה</button>
+        style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 84, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+        <span style={{ width: 46, height: 46, borderRadius: "50%", background: "#E0463C", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(224,70,60,0.38)" }}><ActionIcon name="trash" /></span>
+      </button>
       <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         style={{ position: "relative", zIndex: 1, transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform .22s ease", touchAction: "pan-y" }}>
         {children}
@@ -772,7 +805,10 @@ function useSheetDrag(onClose) {
     else set(0);
   };
   return {
-    sheetStyle: { transform: `translateY(${dy}px)`, transition: dragging ? "none" : "transform .25s ease" },
+    /* transform רק כשבאמת גוררים: transform קבוע (גם translateY(0)) הופך את ה-sheet
+       ל"עוגן" של position:fixed שבתוכו, ואז שכבות מסך-מלא (כמו הרקע של תפריט ה-⋯)
+       מכסות רק את הכרטיס במקום את כל המסך */
+    sheetStyle: { transform: dy ? `translateY(${dy}px)` : "none", transition: dragging ? "none" : "transform .25s ease" },
     dragHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
   };
 }
@@ -786,6 +822,15 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
   const title = (tx.note && tx.note.trim()) || (merchant && merchant.name) || (isTransfer ? "העברה" : c.name);
 
   const [editing, setEditing] = useState(!!initialEdit);
+  const [menuOpen, setMenuOpen] = useState(false); // תפריט ⋯ בראש הכרטיס
+
+  // סגירת תפריט ה-⋯ במקש Escape - למקלדת ולקוראי מסך
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
   const [amount, setAmount] = useState(String(tx.amount));
   const [accountId, setAccountId] = useState(tx.accountId);
   const [categoryId, setCategoryId] = useState(tx.categoryId);
@@ -804,18 +849,36 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
     onSave(patch);
   };
 
+  // אם תפריט ה-⋯ פתוח, הקשה על הרקע הכהה סוגרת קודם רק אותו - לא את כל הכרטיס
   return (
-    <div style={S.overlay} onClick={onClose}>
+    <div style={S.overlay} onClick={() => (menuOpen ? setMenuOpen(false) : onClose())}>
       <div style={{ ...S.sheet, ...sheetDrag.sheetStyle }} onClick={(e) => e.stopPropagation()}>
         <div {...sheetDrag.dragHandlers} style={{ padding: "4px 0 10px", touchAction: "none", cursor: "grab" }}><div style={S.sheetHandle} /></div>
         {!editing ? (
           <React.Fragment>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={S.sheetTitle}>{title}</div>
-              {/* אותה שפה כמו ברשימה: פלוס ירוק מודגש, מינוס בורדו רגיל */}
-              <div style={{ ...S.ltrNum, fontWeight: isIncome || isTransfer ? 900 : 400, fontSize: 22, whiteSpace: "nowrap", color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#7E3B47" }}>
-                {isIncome ? "+" : isTransfer ? "" : "-"}{fmt(tx.amount)}
+            {/* שורת כותרת בסגנון sheets של אפל: תפריט ⋯ מימין, כותרת באמצע, X משמאל.
+                ב-RTL הילד הראשון של flex מוצג מימין - לכן ⋯ ראשון ב-DOM */}
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button className="circleBtn" aria-label="פעולות נוספות" aria-haspopup="menu" aria-expanded={menuOpen} style={{ fontSize: 17, fontWeight: 700 }} onClick={() => setMenuOpen((v) => !v)}>⋯</button>
+                <div style={{ ...S.sheetTitle, marginBottom: 0, flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+                <button className="circleBtn" aria-label="סגירה" style={{ fontSize: 14 }} onClick={onClose}>✕</button>
               </div>
+              {menuOpen && (
+                <React.Fragment>
+                  {/* שכבה שקופה מאחורי התפריט: הקשה בכל מקום אחר סוגרת אותו */}
+                  <div style={{ position: "fixed", inset: 0, zIndex: 5 }} onClick={() => setMenuOpen(false)} />
+                  <div role="menu" style={{ position: "absolute", top: 40, right: 0, zIndex: 6, background: "#fff", borderRadius: 14, boxShadow: "0 10px 34px rgba(19,42,35,0.2)", border: "1px solid #F0F4F0", minWidth: 150, overflow: "hidden" }}>
+                    <button role="menuitem" className="menuItem" onClick={() => { setMenuOpen(false); setEditing(true); }}>עריכה</button>
+                    <div style={{ height: 1, background: "#F0F4F0" }} />
+                    <button role="menuitem" className="menuItem" style={{ color: "#B0433B" }} onClick={() => { setMenuOpen(false); onDelete(); }}>מחיקה</button>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+            {/* הסכום ירד מתחת לכותרת, ממורכז - אותה שפת צבע וסימן כמו ברשימה */}
+            <div style={{ ...S.ltrNum, textAlign: "center", marginTop: 8, fontWeight: isIncome || isTransfer ? 900 : 400, fontSize: 26, whiteSpace: "nowrap", color: isIncome ? "#1E7A5A" : isTransfer ? "#7A8A82" : "#7E3B47" }}>
+              {isIncome ? "+" : isTransfer ? "" : "-"}{fmt(tx.amount)}
             </div>
             {!isTransfer && !isIncome && (
               <div style={S.detailRow}><span style={S.detailKey}>קטגוריה</span><span>{c.emoji} {c.name}</span></div>
@@ -832,10 +895,6 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
             {tx.fixedId && <div style={S.detailRow}><span style={S.detailKey}>הוצאה קבועה</span><span>כן</span></div>}
             <div style={{ ...S.fieldLabel, marginTop: 16 }}>הערה</div>
             <div style={S.noteBlock}>{tx.note ? tx.note : <span style={{ color: "#9AA8A1" }}>אין הערה</span>}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-              <button className="primaryBtn" style={{ ...S.primaryBtn, marginTop: 0, flex: 1 }} onClick={() => setEditing(true)}>עריכה</button>
-              <button className="miniBtn" style={{ background: "#F6E4E2", color: "#B0433B", padding: "12px 18px" }} onClick={onDelete}>מחיקה</button>
-            </div>
           </React.Fragment>
         ) : (
           <React.Fragment>
