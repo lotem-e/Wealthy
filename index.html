@@ -745,7 +745,40 @@ function TxTab({ S, monthTx, accounts, accById, merchById, filterAcc, setFilterA
 }
 
 // ================= גיליון פרטי תנועה =================
+// ================= החלקה למטה לסגירת Bottom Sheet (בסגנון iOS) =================
+// גוררים את ה-handle כלפי מטה; אחרי סף מסוים הגיליון נסגר, אחרת חוזר למקום.
+function useSheetDrag(onClose) {
+  const [dy, setDy] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const st = React.useRef(null);
+  const dyRef = React.useRef(0);
+  const set = (v) => { dyRef.current = v; setDy(v); };
+  const DISMISS = 110;
+  const onPointerDown = (e) => {
+    st.current = { y: e.clientY };
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  };
+  const onPointerMove = (e) => {
+    if (!st.current) return;
+    set(Math.max(0, e.clientY - st.current.y)); // רק כלפי מטה
+  };
+  const onPointerUp = () => {
+    if (!st.current) return;
+    const shouldClose = dyRef.current > DISMISS;
+    st.current = null;
+    setDragging(false);
+    if (shouldClose) onClose();
+    else set(0);
+  };
+  return {
+    sheetStyle: { transform: `translateY(${dy}px)`, transition: dragging ? "none" : "transform .25s ease" },
+    dragHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+  };
+}
+
 function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose, onSave, onDelete, initialEdit }) {
+  const sheetDrag = useSheetDrag(onClose);
   const merchant = tx.merchantId ? merchById(tx.merchantId) : null;
   const isTransfer = tx.type === "transfer";
   const isIncome = tx.type === "income";
@@ -773,8 +806,8 @@ function TxDetailSheet({ S, tx, accounts, merchants, accById, merchById, onClose
 
   return (
     <div style={S.overlay} onClick={onClose}>
-      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
-        <div style={S.sheetHandle} />
+      <div style={{ ...S.sheet, ...sheetDrag.sheetStyle }} onClick={(e) => e.stopPropagation()}>
+        <div {...sheetDrag.dragHandlers} style={{ padding: "4px 0 10px", touchAction: "none", cursor: "grab" }}><div style={S.sheetHandle} /></div>
         {!editing ? (
           <React.Fragment>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -1025,6 +1058,7 @@ function SettingsTab({ S, data, persist, session, syncStatus, onLogout, onLogin 
 
 // ================= גיליון הוספה =================
 function AddSheet({ S, accounts, merchants, onClose, onPaste, onSave }) {
+  const sheetDrag = useSheetDrag(onClose);
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState((accounts[0] || {}).id);
@@ -1044,8 +1078,8 @@ function AddSheet({ S, accounts, merchants, onClose, onPaste, onSave }) {
 
   return (
     <div style={S.overlay} onClick={onClose}>
-      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
-        <div style={S.sheetHandle} />
+      <div style={{ ...S.sheet, ...sheetDrag.sheetStyle }} onClick={(e) => e.stopPropagation()}>
+        <div {...sheetDrag.dragHandlers} style={{ padding: "4px 0 10px", touchAction: "none", cursor: "grab" }}><div style={S.sheetHandle} /></div>
         {/* קיצור דרך לזרימת הדבקת הודעות אשראי - סוגר את גיליון ההוספה ופותח את גיליון ההדבקה */}
         <button className="miniBtn" style={{ width: "100%", marginBottom: 10 }} onClick={onPaste}>📩 הדבקת הודעות אשראי</button>
         <div style={S.segmented}>
@@ -1121,6 +1155,7 @@ function AddSheet({ S, accounts, merchants, onClose, onPaste, onSave }) {
 
 // ================= הדבקת SMS =================
 function SmsSheet({ S, accounts, merchants, onClose, onConfirm }) {
+  const sheetDrag = useSheetDrag(onClose);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [rows, setRows] = useState(null);
@@ -1158,8 +1193,8 @@ function SmsSheet({ S, accounts, merchants, onClose, onConfirm }) {
 
   return (
     <div style={S.overlay} onClick={onClose}>
-      <div style={S.sheet} onClick={(e) => e.stopPropagation()}>
-        <div style={S.sheetHandle} />
+      <div style={{ ...S.sheet, ...sheetDrag.sheetStyle }} onClick={(e) => e.stopPropagation()}>
+        <div {...sheetDrag.dragHandlers} style={{ padding: "4px 0 10px", touchAction: "none", cursor: "grab" }}><div style={S.sheetHandle} /></div>
         <div style={S.sheetTitle}>הדבקת הודעות אשראי</div>
 
         {!rows && (
