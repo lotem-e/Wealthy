@@ -11,3 +11,11 @@
 # Personal financial data - NEVER commit to the public repo
 import-data/
 *.csv
+
+# Installed dependencies and build output - recreated by tools, never committed
+node_modules/
+dist/
+
+# Secrets - NEVER commit to the public repo
+.env
+.env.*
